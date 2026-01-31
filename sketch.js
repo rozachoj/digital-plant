@@ -35,27 +35,14 @@ let flowerImage;
 let potImage;
 let groundImage;
 
-// === POT POSITION CONTROL ===
-// CHANGE THIS NUMBER to move the pot up or down on the ground
-// Higher number = pot sits LOWER (more into the ground)
-// Try values like: 50, 100, 150, 200
-let potEmbedAmount = 100;
-
-// === RESPONSIVE ADJUSTMENT VARIABLES ===
-let POT_ADJUSTMENTS = {
-  x: 0,
-  y: 0,
-  width: 200,
-  height: 160,
-  scale: 0.1,
-  plantStartY: -120
-};
-
-let GROUND_ADJUSTMENTS = {
-  y: 0,
-  height: 200,
-  scale: 1.0
-};
+// =====================================================
+// POT POSITION CONTROL - CHANGE THIS NUMBER TO ADJUST
+// =====================================================
+// This controls how far down from the TOP of the ground the pot sits
+// LOWER number (like 20) = pot is HIGHER (barely in ground)
+// HIGHER number (like 100) = pot is LOWER (deeper in ground)
+let potEmbedAmount = 60;
+// =====================================================
 
 // Pot properties
 let pot = {
@@ -64,16 +51,13 @@ let pot = {
   width: 200,
   height: 160,
   scale: 0.1,
-  imageLoaded: false,
-  plantStartY: -120
+  imageLoaded: false
 };
 
 // Ground properties
 let ground = {
   y: 0,
-  height: 200,
-  scale: 1.0,
-  imageLoaded: false
+  height: 200
 };
 
 function preload() {
@@ -101,55 +85,35 @@ function getSmoothedValue(history, newValue, windowSize) {
   return Math.round(sum / history.length);
 }
 
-  
-
 function calculateRealPlantAge() {
   const now = new Date();
   const ageInMillis = now - PLANTING_DATE;
   const ageInDays = ageInMillis / (1000 * 60 * 60 * 24);
   return ageInDays * 100;
 }
-// === RESPONSIVE POSITIONING ===
-function calculateResponsivePositions() {
-  // Center horizontally
-  POT_ADJUSTMENTS.x = windowWidth / 2;
-  
-  // Ground fills bottom 25% of screen
-  GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
-  GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
-  
-  // Position pot using potEmbedAmount (this syncs plant base with pot drawing)
-  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
-  
-  // Apply to pot object
-  pot.x = POT_ADJUSTMENTS.x;
-  pot.y = POT_ADJUSTMENTS.y;
-  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
-  
-  // Apply to ground object
-  ground.y = GROUND_ADJUSTMENTS.y;
-  ground.height = GROUND_ADJUSTMENTS.height;
-}
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   
-  // Calculate responsive positions FIRST
-  calculateResponsivePositions();
-  
-  // Initialize plant age
-  plantAge = calculateRealPlantAge();
-  lastUpdateTime = new Date();
-  
-  // ... rest of your setup code stays the same
+  // Calculate ground position (bottom 25% of screen)
+  ground.height = windowHeight * 0.25;
+  ground.y = windowHeight - ground.height;
   
   // Update pot dimensions if image is loaded
   if (potImage.width > 0) {
-    pot.scale = POT_ADJUSTMENTS.scale;
+    pot.scale = 0.1;
     pot.width = potImage.width * pot.scale;
     pot.height = potImage.height * pot.scale;
     pot.imageLoaded = true;
   }
+  
+  // Position pot: centered horizontally, embedded in ground
+  pot.x = windowWidth / 2;
+  pot.y = ground.y + potEmbedAmount;
+  
+  // Initialize plant age
+  plantAge = calculateRealPlantAge();
+  lastUpdateTime = new Date();
   
   // Expose function to receive serial data from HTML
   window.handleSerialData = function(data) {
@@ -158,18 +122,12 @@ function setup() {
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
-  console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
-  console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
+  console.log("Ground starts at y:", ground.y);
+  console.log("Pot center at y:", pot.y);
   
-  // Start plant from the pot position (synced with potEmbedAmount)
+  // Start plant from top of pot
   let baseX = pot.x;
-  // Pot center is drawn at: ground.y + potEmbedAmount
-  // Pot top is at: ground.y + potEmbedAmount - pot.height/2
-  // Plant starts from pot top + plantStartY offset (plantStartY is negative, so plant grows UP from pot)
-  let potCenterY = ground.y + potEmbedAmount;
-  let potTopY = potCenterY - pot.height/2;
-  let baseY = potTopY + pot.plantStartY;
-  console.log("[v0] Plant base - ground.y:", ground.y, "potEmbedAmount:", potEmbedAmount, "potTopY:", potTopY, "baseY:", baseY);
+  let baseY = pot.y - pot.height/2 - 30;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
@@ -301,9 +259,19 @@ function drawGround() {
 
 function drawPot() {
   if (pot.imageLoaded && potImage.width > 0) {
-    drawPotImage();
+    push();
+    imageMode(CENTER);
+    image(potImage, pot.x, pot.y, pot.width, pot.height);
+    pop();
   } else {
-    drawSimplePot();
+    let potTopY = pot.y - pot.height/2;
+    fill(205, 133, 63);
+    stroke(165, 103, 43);
+    strokeWeight(2);
+    rect(pot.x - pot.width/3, potTopY, pot.width * 0.67, pot.height);
+    fill(185, 113, 53);
+    noStroke();
+    rect(pot.x - pot.width/3, potTopY - 5, pot.width * 0.67, 10, 3);
   }
 }
 
@@ -827,3 +795,7 @@ function keyPressed() {
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
 }
+
+
+
+

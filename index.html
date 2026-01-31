@@ -1,49 +1,66 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js"></script>
-  <style>
-    body {
-      margin: 0;
-      padding: 20px;
-      background: #f5f5f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      font-family: Arial, sans-serif;
-    }
-    #plant-container {
-      text-align: center;
-    }
-    h1 {
-      color: #2e7d32;
-    }
-    .info {
-      background: white;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-  </style>
+    <title>My Digital Fuchsia Plant</title>
+    <meta charset="utf-8">
+    <!-- Load the p5.js library from a CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
+    <!-- Load YOUR plant simulation code -->
+    <script src="sketch.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #e0f7fa, #bbdefb);
+            text-align: center;
+            color: #2e7d32;
+        }
+        #header {
+            margin-bottom: 20px;
+        }
+        /* This style ensures the canvas doesn't have extra space */
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .instructions {
+            background-color: rgba(255, 255, 255, 0.9);
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
-  <div id="plant-container">
-    <h1>🌿 My Digital Fuchsia Plant</h1>
-    <p>Planted on November 11, 2025 • Growing in real-time</p>
-    <div id="sketch-container"></div>
-    <div class="info">
-      <p><strong>How it works:</strong> This digital plant grows exactly like my real fuchsia plant!</p>
-      <p>🌞 Grows during daytime (7 AM - 7 PM Netherlands time)</p>
-      <p>💧 Click to water • 🌱 Spacebar to manually grow</p>
-      <p>Refresh the page to see its progress!</p>
+    <div id="header">
+        <h1>🌸 My Digital Fuchsia Plant</h1>
+        <p><strong>Planted on November 11, 2025 • Growing in real-time</strong></p>
+        <p>The code below should show an interactive plant. If you only see this text, check the browser console (F12) for errors.</p>
     </div>
-  </div>
-  
-  <script>
-    // Your p5.js code goes here OR link to external file:
-    // <script src="sketch.js"></script>
-  </script>
+    <!-- The p5.js canvas will be created right here by sketch.js -->
+    
+    <div class="instructions">
+        <h3>🌱 How to Interact:</h3>
+        <p><strong>💧 CLICK</strong> anywhere on the canvas to water the plant.</p>
+        <p><strong>🌱 SPACEBAR</strong> to manually grow a segment.</p>
+        <p><strong>🔄 R KEY</strong> to reset (starts from current real age).</p>
+        <p><strong>⚡ A KEY</strong> to toggle auto-growth on/off.</p>
+        <p><strong>🌞/🌙</strong> Plant grows during daytime (7 AM - 7 PM Netherlands time).</p>
+        <hr>
+        <h3>📊 What to Look For:</h3>
+        <p>Once working, a plant will appear above. A black UI panel in the top-left will show:</p>
+        <ul>
+            <li>Netherlands time & growth status</li>
+            <li>Plant age in days</li>
+            <li>Number of leaves and flowers</li>
+            <li>Soil moisture level and needs</li>
+        </ul>
+    </div>
 </body>
 </html>

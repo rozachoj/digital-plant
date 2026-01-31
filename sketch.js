@@ -1,5 +1,6 @@
-// === SERIAL COMMUNICATION (Web Serial API) ===
+// === SERIAL COMMUNICATION ===
 let serialConnected = false;
+let lastDataTime = 0;
 
 // Sensor data
 let sensorData = {
@@ -109,18 +110,15 @@ function setup() {
     pot.imageLoaded = true;
   }
   
-  // Web Serial: expose function to receive data from HTML
+  // Expose function to receive serial data from HTML
   window.handleSerialData = function(data) {
-    serialEvent(data);
+    processSerialData(data);
   };
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
-  console.log("Pot position (x, y):", pot.x, pot.y);
-  console.log("Ground position (y):", ground.y);
   console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
-  console.log("Press W/S to move pot up/down | I/K to move ground up/down");
   
   // Start plant from adjusted position
   let baseX = pot.x;
@@ -128,57 +126,56 @@ function setup() {
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
-// Web Serial event handler
-function serialEvent(data) {
+function processSerialData(data) {
   if (!data) return;
   
   data = data.trim();
-  console.log("Received raw data:", data);
+  console.log("Raw data received:", data);
   
-  // Parse sensor data from Arduino
-  // Try different formats
-  let sensors;
+  // Try different parsing methods
+  let parts;
   
-  // Format 1: Comma separated "soil,oxygen,heart"
+  // Check what separator is used
   if (data.includes(',')) {
-    sensors = data.split(',');
-  } 
-  // Format 2: Space separated "soil oxygen heart"
-  else {
-    sensors = data.split(/\s+/);
+    parts = data.split(',');
+  } else if (data.includes(';')) {
+    parts = data.split(';');
+  } else {
+    parts = data.split(/\s+/);
   }
   
-  console.log("Parsed sensors:", sensors);
+  console.log("Parsed parts:", parts);
   
-  if (sensors.length >= 1) {
-    // Parse soil moisture (first value)
-    let soilVal = Number(sensors[0]);
+  if (parts.length >= 1) {
+    // First value is soil moisture
+    let soilVal = parseFloat(parts[0]);
     if (!isNaN(soilVal)) {
       sensorData.soilMoisture = soilVal;
-      console.log("Soil updated:", soilVal);
     }
     
-    // Parse oxygen (second value if available)
-    if (sensors.length >= 2) {
-      let oxygenVal = Number(sensors[1]);
+    // Second value is oxygen (if exists)
+    if (parts.length >= 2) {
+      let oxygenVal = parseFloat(parts[1]);
       if (!isNaN(oxygenVal)) {
         sensorData.oxygen = oxygenVal;
-        console.log("Oxygen updated:", oxygenVal);
       }
     }
     
-    // Parse heart rate (third value if available)
-    if (sensors.length >= 3) {
-      let heartVal = Number(sensors[2]);
+    // Third value is heart rate (if exists)
+    if (parts.length >= 3) {
+      let heartVal = parseFloat(parts[2]);
       if (!isNaN(heartVal)) {
         sensorData.heartRate = heartVal;
-        console.log("Heart rate updated:", heartVal);
       }
     }
+    
+    serialConnected = true;
+    lastDataTime = millis();
+    
+    console.log("Updated sensors - Soil:", sensorData.soilMoisture, 
+                "O2:", sensorData.oxygen, 
+                "Heart:", sensorData.heartRate);
   }
-  
-  // Update connection status in UI
-  serialConnected = true;
 }
 
 function windowResized() {
@@ -557,11 +554,26 @@ function drawUI() {
   text("Planted: 11 Nov 2025", 15, 25);
   
   // Serial connection status
-  let serialStatus = serialConnected ? "✅ Arduino Connected" : "🔌 Click Connect";
-  fill(serialConnected ? color(100, 255, 100) : color(255, 200, 50));
-  text(serialStatus, 120, 25);
+  let serialStatus;
+  let serialColor;
   
-  // Plant status - moved down
+  if (serialConnected) {
+    if (millis() - lastDataTime < 5000) { // Data received in last 5 seconds
+      serialStatus = "✅ Arduino Connected";
+      serialColor = color(100, 255, 100);
+    } else {
+      serialStatus = "⚠️ No recent data";
+      serialColor = color(255, 200, 50);
+    }
+  } else {
+    serialStatus = "🔌 Click Connect Button";
+    serialColor = color(255, 200, 50);
+  }
+  
+  fill(serialColor);
+  text(serialStatus, 15, 45);
+  
+  // Plant status
   let status = "Seed";
   let statusEmoji = "🌱";
   if (plant.length > 3) {
@@ -586,21 +598,21 @@ function drawUI() {
   }
   
   fill(255);
-  text(statusEmoji + " " + status, 15, 45);
+  text(statusEmoji + " " + status, 15, 65);
   
   // Age
-  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 65);
+  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 85);
   
   // Plant statistics
-  text("Leaves: " + leaves.length, 15, 85);
-  text("Flowers: " + flowers.length, 15, 105);
+  text("Leaves: " + leaves.length, 15, 105);
+  text("Flowers: " + flowers.length, 15, 125);
   
-  // Sensor data - on the right side, MOVED RIGHT
+  // Sensor data - on the right side
   let rightColumnX = 135;
   text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
   text("O₂: " + sensorData.oxygen, rightColumnX, 85);
   
-  // Plant needs indicator - simplified
+  // Plant needs indicator
   let needsMessage = "✓ Happy";
   let needsColor = color(100, 255, 100);
   
@@ -615,7 +627,7 @@ function drawUI() {
   fill(needsColor);
   text(needsMessage, rightColumnX, 45);
   
-  // Soil moisture bar - smaller, below sensor data
+  // Soil moisture bar
   noStroke();
   fill(100);
   rect(rightColumnX, 95, 80, 8);
@@ -764,113 +776,4 @@ function keyPressed() {
     autoGrowth = !autoGrowth;
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
-  
-  // Pot adjustment keys (still work but not shown in UI)
-  if (key === '+' || key === '=') {
-    POT_ADJUSTMENTS.scale = min(1.5, POT_ADJUSTMENTS.scale + 0.1);
-    updatePotFromAdjustments();
-    console.log("Pot scale:", POT_ADJUSTMENTS.scale);
-    return false;
-  }
-  
-  if (key === '-' || key === '_') {
-    POT_ADJUSTMENTS.scale = max(0.4, POT_ADJUSTMENTS.scale - 0.1);
-    updatePotFromAdjustments();
-    console.log("Pot scale:", POT_ADJUSTMENTS.scale);
-    return false;
-  }
-  
-  if (key === 'w' || key === 'W') {
-    POT_ADJUSTMENTS.y -= 5;
-    updatePotFromAdjustments();
-    console.log("Pot moved up to y=" + POT_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 's' || key === 'S') {
-    POT_ADJUSTMENTS.y += 5;
-    updatePotFromAdjustments();
-    console.log("Pot moved down to y=" + POT_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'q' || key === 'Q') {
-    POT_ADJUSTMENTS.plantStartY -= 5;
-    updatePotFromAdjustments();
-    console.log("Plant start moved up to", POT_ADJUSTMENTS.plantStartY);
-    return false;
-  }
-  
-  if (key === 'e' || key === 'E') {
-    POT_ADJUSTMENTS.plantStartY += 5;
-    updatePotFromAdjustments();
-    console.log("Plant start moved down to", POT_ADJUSTMENTS.plantStartY);
-    return false;
-  }
-  
-  // Ground adjustment keys (still work but not shown in UI)
-  if (key === 'i' || key === 'I') {
-    GROUND_ADJUSTMENTS.y -= 5;
-    updateGroundFromAdjustments();
-    console.log("Ground moved up to y=" + GROUND_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'k' || key === 'K') {
-    GROUND_ADJUSTMENTS.y += 5;
-    updateGroundFromAdjustments();
-    console.log("Ground moved down to y=" + GROUND_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'j' || key === 'J') {
-    GROUND_ADJUSTMENTS.height -= 5;
-    GROUND_ADJUSTMENTS.height = max(20, GROUND_ADJUSTMENTS.height);
-    updateGroundFromAdjustments();
-    console.log("Ground height decreased to", GROUND_ADJUSTMENTS.height);
-    return false;
-  }
-  
-  if (key === 'l' || key === 'L') {
-    GROUND_ADJUSTMENTS.height += 5;
-    GROUND_ADJUSTMENTS.height = min(300, GROUND_ADJUSTMENTS.height);
-    updateGroundFromAdjustments();
-    console.log("Ground height increased to", GROUND_ADJUSTMENTS.height);
-    return false;
-  }
 }
-
-function updatePotFromAdjustments() {
-  pot.x = POT_ADJUSTMENTS.x;
-  pot.y = POT_ADJUSTMENTS.y;
-  pot.scale = POT_ADJUSTMENTS.scale;
-  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
-  
-  if (potImage && potImage.width > 0) {
-    pot.width = potImage.width * pot.scale;
-    pot.height = potImage.height * pot.scale;
-  } else {
-    pot.width = 200 * pot.scale;
-    pot.height = 160 * pot.scale;
-  }
-}
-
-function updateGroundFromAdjustments() {
-  ground.y = GROUND_ADJUSTMENTS.y;
-  ground.height = GROUND_ADJUSTMENTS.height;
-  ground.scale = GROUND_ADJUSTMENTS.scale;
-}
-
-// Test function to simulate Arduino data (for debugging)
-function simulateArduinoData() {
-  // Simulate random sensor data for testing
-  setInterval(function() {
-    if (!serialConnected) {
-      const simulatedData = `${Math.floor(Math.random() * 600) + 200} ${Math.floor(Math.random() * 200) + 300}`;
-      serialEvent(simulatedData);
-    }
-  }, 2000);
-}
-
-// Uncomment the line below to test without Arduino
-// simulateArduinoData();

@@ -35,6 +35,12 @@ let flowerImage;
 let potImage;
 let groundImage;
 
+// === POT POSITION CONTROL ===
+// CHANGE THIS NUMBER to move the pot up or down on the ground
+// Higher number = pot sits LOWER (more into the ground)
+// Try values like: 50, 100, 150, 200
+let potEmbedAmount = 100;
+
 // === RESPONSIVE ADJUSTMENT VARIABLES ===
 let POT_ADJUSTMENTS = {
   x: 0,
@@ -104,10 +110,6 @@ function calculateRealPlantAge() {
   return ageInDays * 100;
 }
 // === RESPONSIVE POSITIONING ===
-// ADJUSTMENT: Change this value to move pot up/down in the ground
-// Higher number = pot sits lower in ground
-let POT_EMBED_AMOUNT = 100;  // <-- CHANGE THIS NUMBER to adjust pot position
-
 function calculateResponsivePositions() {
   // Center horizontally
   POT_ADJUSTMENTS.x = windowWidth / 2;
@@ -116,9 +118,8 @@ function calculateResponsivePositions() {
   GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
   GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
   
-  // Position pot on the ground with adjustable embed amount
-  // POT_EMBED_AMOUNT controls how deep the pot sits in the ground
-  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + POT_EMBED_AMOUNT;
+  // Position pot using potEmbedAmount (this syncs plant base with pot drawing)
+  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
   
   // Apply to pot object
   pot.x = POT_ADJUSTMENTS.x;
@@ -160,9 +161,13 @@ function setup() {
   console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   
-  // Start plant from responsive position
+  // Start plant from the pot position (synced with potEmbedAmount)
   let baseX = pot.x;
-  let baseY = pot.y + pot.plantStartY;
+  // Plant grows from top of pot: pot center is at ground.y + potEmbedAmount, 
+  // so top of pot is at ground.y + potEmbedAmount - pot.height/2, 
+  // then add plantStartY offset (negative value to go up into pot)
+  let potVisualY = ground.y + potEmbedAmount;
+  let baseY = potVisualY - pot.height/2 + pot.plantStartY;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
@@ -217,18 +222,20 @@ function processSerialData(data) {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
-  // Store old positions
+  // Store old positions (using visual pot position synced with potEmbedAmount)
   let oldPotX = pot.x;
-  let oldPotY = pot.y + pot.plantStartY;
+  let oldPotVisualY = ground.y + potEmbedAmount;
+  let oldPlantBaseY = oldPotVisualY - pot.height/2 + pot.plantStartY;
   
   // Recalculate responsive positions
   calculateResponsivePositions();
   
   // Calculate offset to move plant with pot
   let newPotX = pot.x;
-  let newPotY = pot.y + pot.plantStartY;
+  let newPotVisualY = ground.y + potEmbedAmount;
+  let newPlantBaseY = newPotVisualY - pot.height/2 + pot.plantStartY;
   let offsetX = newPotX - oldPotX;
-  let offsetY = newPotY - oldPotY;
+  let offsetY = newPlantBaseY - oldPlantBaseY;
   
   // Move all plant segments
   for (let segment of plant) {
@@ -299,15 +306,17 @@ function drawPot() {
 function drawPotImage() {
   push();
   imageMode(CENTER);
-  // POT_GROUND_OFFSET: Increase this number to move pot DOWN into ground
-  let POT_GROUND_OFFSET = 200;  // <-- CHANGE THIS NUMBER
-  let drawY = ground.y + POT_GROUND_OFFSET;
+  // Use potEmbedAmount directly here so changes take effect immediately
+  // This positions the pot relative to ground.y (top of ground)
+  let drawY = ground.y + potEmbedAmount;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
 }
 
 function drawSimplePot() {
-  let potTopY = pot.y - pot.height;
+  // Use potEmbedAmount directly so changes take effect immediately
+  let drawY = ground.y + potEmbedAmount;
+  let potTopY = drawY - pot.height/2;
   
   fill(205, 133, 63);
   stroke(165, 103, 43);
@@ -796,9 +805,10 @@ function keyPressed() {
     plantAge = calculateRealPlantAge();
     lastUpdateTime = new Date();
     
-    // Reset with responsive position
+    // Reset with position synced to potEmbedAmount
     let baseX = pot.x;
-    let baseY = pot.y + pot.plantStartY;
+    let potVisualY = ground.y + potEmbedAmount;
+    let baseY = potVisualY - pot.height/2 + pot.plantStartY;
     plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
     
     sensorData.soilMoisture = 650;
@@ -811,5 +821,3 @@ function keyPressed() {
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
 }
-  
-

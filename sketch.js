@@ -25,11 +25,10 @@ let flowerImage;
 let potImage;
 let groundImage;
 
-// === ADJUSTMENT VARIABLES ===
-// CHANGED: pot.x now uses windowWidth/2 dynamically in setup()
+// === ADJUSTMENT VARIABLES - MOVED EVERYTHING UP BY 150 PIXELS ===
 let POT_ADJUSTMENTS = {
-  x: 400,           // Will be updated to windowWidth/2 in setup()
-  y: 630,
+  x: 400,           // Horizontal position (center is 400)
+  y: 480,           // CHANGED: 480 instead of 630 (moved up 150)
   width: 200,
   height: 160,
   scale: 0.1,
@@ -37,7 +36,7 @@ let POT_ADJUSTMENTS = {
 };
 
 let GROUND_ADJUSTMENTS = {
-  y: 400,
+  y: 250,           // CHANGED: 250 instead of 400 (moved up 150)
   height: 200,
   scale: 1.0
 };
@@ -82,11 +81,8 @@ function calculateRealPlantAge() {
 }
 
 function setup() {
-  // === CRITICAL CHANGE: Make canvas fill the window ===
+  // Create canvas that fills the window
   createCanvas(windowWidth, windowHeight);
-  
-  // === UPDATED: Center the pot based on window width ===
-  POT_ADJUSTMENTS.x = windowWidth / 2;
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
@@ -112,7 +108,10 @@ function setup() {
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
+  console.log("Pot position (x, y):", pot.x, pot.y);
+  console.log("Ground position (y):", ground.y);
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
+  console.log("Press W/S to move pot up/down | I/K to move ground up/down");
   
   // Start plant from adjusted position
   let baseX = pot.x;
@@ -120,11 +119,8 @@ function setup() {
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
-// === ADD THIS FUNCTION: Handle window resizing ===
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  POT_ADJUSTMENTS.x = windowWidth / 2;
-  pot.x = POT_ADJUSTMENTS.x;
 }
 
 function drawBackground() {

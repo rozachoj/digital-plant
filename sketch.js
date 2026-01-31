@@ -1,6 +1,5 @@
-// === SERIAL COMMUNICATION ===
-let serial;
-let portName = 'COM6'; // Change this to your Arduino port
+// === SERIAL COMMUNICATION (Web Serial API) ===
+let serialConnected = false;
 
 // Sensor data
 let sensorData = {
@@ -110,35 +109,16 @@ function setup() {
     pot.imageLoaded = true;
   }
   
-  // === SERIAL COMMUNICATION SETUP ===
-  serial = new p5.SerialPort();
-  serial.on("connected", serverConnected);
-  serial.on("open", portOpen);
-  serial.on("data", serialEvent);
-  serial.on("error", serialError);
-  serial.on("close", portClose);
-  
-  // For p5.serialport library in web mode
-  if (typeof serial.open === 'function') {
-    serial.open(portName);
-  } else if (typeof serial.openPort === 'function') {
-    // Some versions use openPort
-    serial.openPort(portName);
-  }
-  
-  // Fallback: Try to connect automatically if in web mode
-  setTimeout(function() {
-    if (typeof serial.list === 'function') {
-      serial.list();
-      serial.openPath(portName);
-    }
-  }, 1000);
+  // Web Serial: expose function to receive data from HTML
+  window.handleSerialData = function(data) {
+    serialEvent(data);
+  };
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
   console.log("Pot position (x, y):", pot.x, pot.y);
   console.log("Ground position (y):", ground.y);
-  console.log("Serial port:", portName);
+  console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   console.log("Press W/S to move pot up/down | I/K to move ground up/down");
   
@@ -148,60 +128,57 @@ function setup() {
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
-// === SERIAL EVENT HANDLERS ===
-function serverConnected() {
-  console.log("Connected to serial server");
-}
-
-function portOpen() {
-  console.log("Serial port opened on " + portName);
-}
-
-function portClose() {
-  console.log("Serial port closed");
-}
-
-function serialError(err) {
-  console.log("Serial error: " + err);
-}
-
-function serialEvent() {
-  let currentString = serial.readLine();
-  if (!currentString) return;
+// Web Serial event handler
+function serialEvent(data) {
+  if (!data) return;
   
-  currentString = currentString.trim();
-  console.log("Received: " + currentString);
+  data = data.trim();
+  console.log("Received raw data:", data);
   
   // Parse sensor data from Arduino
-  // Format: "soilMoisture oxygen" or "soilMoisture oxygen heartRate"
-  let sensors = currentString.split(' ');
+  // Try different formats
+  let sensors;
   
-  if (sensors.length >= 2) {
-    // Parse soil moisture
+  // Format 1: Comma separated "soil,oxygen,heart"
+  if (data.includes(',')) {
+    sensors = data.split(',');
+  } 
+  // Format 2: Space separated "soil oxygen heart"
+  else {
+    sensors = data.split(/\s+/);
+  }
+  
+  console.log("Parsed sensors:", sensors);
+  
+  if (sensors.length >= 1) {
+    // Parse soil moisture (first value)
     let soilVal = Number(sensors[0]);
     if (!isNaN(soilVal)) {
       sensorData.soilMoisture = soilVal;
+      console.log("Soil updated:", soilVal);
     }
     
-    // Parse oxygen
-    let oxygenVal = Number(sensors[1]);
-    if (!isNaN(oxygenVal)) {
-      sensorData.oxygen = oxygenVal;
+    // Parse oxygen (second value if available)
+    if (sensors.length >= 2) {
+      let oxygenVal = Number(sensors[1]);
+      if (!isNaN(oxygenVal)) {
+        sensorData.oxygen = oxygenVal;
+        console.log("Oxygen updated:", oxygenVal);
+      }
     }
     
-    // Parse heart rate if available
+    // Parse heart rate (third value if available)
     if (sensors.length >= 3) {
       let heartVal = Number(sensors[2]);
       if (!isNaN(heartVal)) {
         sensorData.heartRate = heartVal;
+        console.log("Heart rate updated:", heartVal);
       }
     }
-    
-    // Debug: Log parsed values
-    console.log("Parsed - Soil:", sensorData.soilMoisture, 
-                "O2:", sensorData.oxygen, 
-                "Heart:", sensorData.heartRate);
   }
+  
+  // Update connection status in UI
+  serialConnected = true;
 }
 
 function windowResized() {
@@ -579,6 +556,11 @@ function drawUI() {
   // Planting date - at the top
   text("Planted: 11 Nov 2025", 15, 25);
   
+  // Serial connection status
+  let serialStatus = serialConnected ? "✅ Arduino Connected" : "🔌 Click Connect";
+  fill(serialConnected ? color(100, 255, 100) : color(255, 200, 50));
+  text(serialStatus, 120, 25);
+  
   // Plant status - moved down
   let status = "Seed";
   let statusEmoji = "🌱";
@@ -603,6 +585,7 @@ function drawUI() {
     statusEmoji = "🌳";
   }
   
+  fill(255);
   text(statusEmoji + " " + status, 15, 45);
   
   // Age
@@ -614,8 +597,8 @@ function drawUI() {
   
   // Sensor data - on the right side, MOVED RIGHT
   let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 45);
-  text("O₂: " + sensorData.oxygen, rightColumnX, 65);
+  text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
+  text("O₂: " + sensorData.oxygen, rightColumnX, 85);
   
   // Plant needs indicator - simplified
   let needsMessage = "✓ Happy";
@@ -630,21 +613,21 @@ function drawUI() {
   }
   
   fill(needsColor);
-  text(needsMessage, rightColumnX, 25);
+  text(needsMessage, rightColumnX, 45);
   
   // Soil moisture bar - smaller, below sensor data
   noStroke();
   fill(100);
-  rect(rightColumnX, 80, 80, 8);
+  rect(rightColumnX, 95, 80, 8);
   fill(50, 200, 50);
   let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
   moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 80, moistureWidth, 8);
+  rect(rightColumnX, 95, moistureWidth, 8);
   
   // Soil moisture label
   fill(255);
   textSize(10);
-  text("Moisture", rightColumnX, 100);
+  text("Moisture", rightColumnX, 115);
 }
 
 class StemSegment {
@@ -877,3 +860,17 @@ function updateGroundFromAdjustments() {
   ground.height = GROUND_ADJUSTMENTS.height;
   ground.scale = GROUND_ADJUSTMENTS.scale;
 }
+
+// Test function to simulate Arduino data (for debugging)
+function simulateArduinoData() {
+  // Simulate random sensor data for testing
+  setInterval(function() {
+    if (!serialConnected) {
+      const simulatedData = `${Math.floor(Math.random() * 600) + 200} ${Math.floor(Math.random() * 200) + 300}`;
+      serialEvent(simulatedData);
+    }
+  }, 2000);
+}
+
+// Uncomment the line below to test without Arduino
+// simulateArduinoData();

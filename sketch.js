@@ -2,7 +2,14 @@
 let serialConnected = false;
 let lastDataTime = 0;
 
-// Sensor data
+// === DATA SMOOTHING ===
+// Store recent values for averaging
+const SMOOTHING_WINDOW = 10; // Number of readings to average
+let soilMoistureHistory = [];
+let oxygenHistory = [];
+let heartRateHistory = [];
+
+// Sensor data (smoothed values displayed)
 let sensorData = {
   soilMoisture: 600,
   oxygen: 350,
@@ -84,9 +91,26 @@ function calculateRealPlantAge() {
   return ageInDays * 100;
 }
 
+// === SMOOTHING HELPER FUNCTION ===
+function getSmoothedValue(history, newValue, windowSize) {
+  // Add new value to history
+  history.push(newValue);
+  
+  // Keep only the most recent values
+  while (history.length > windowSize) {
+    history.shift();
+  }
+  
+  // Calculate average
+  if (history.length === 0) return newValue;
+  
+  const sum = history.reduce((a, b) => a + b, 0);
+  return Math.round(sum / history.length);
+}
+
 function setup() {
   // Create canvas that fills the window
-  createCanvas(windowWidth, windowHeight);
+  window.createCanvas(window.innerWidth, window.innerHeight);
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
@@ -116,21 +140,23 @@ function setup() {
   };
   
   console.log("Fuchsia Plant Simulation Started!");
-  console.log("Canvas size:", windowWidth, "x", windowHeight);
+  console.log("Canvas size:", window.innerWidth, "x", window.innerHeight);
   console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   
   // Start plant from adjusted position
   let baseX = pot.x;
   let baseY = pot.y + pot.plantStartY;
-  plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
+  plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -Math.PI/2, 7));
 }
 
 function processSerialData(data) {
   if (!data) return;
   
   data = data.trim();
-  console.log("Raw data received:", data);
+  
+  // Skip empty lines
+  if (data.length === 0) return;
   
   // Try different parsing methods
   let parts;
@@ -144,54 +170,48 @@ function processSerialData(data) {
     parts = data.split(/\s+/);
   }
   
-  console.log("Parsed parts:", parts);
-  
   if (parts.length >= 1) {
-    // First value is soil moisture
+    // First value is soil moisture - apply smoothing
     let soilVal = parseFloat(parts[0]);
     if (!isNaN(soilVal)) {
-      sensorData.soilMoisture = soilVal;
+      sensorData.soilMoisture = getSmoothedValue(soilMoistureHistory, soilVal, SMOOTHING_WINDOW);
     }
     
-    // Second value is oxygen (if exists)
+    // Second value is oxygen (if exists) - apply smoothing
     if (parts.length >= 2) {
       let oxygenVal = parseFloat(parts[1]);
       if (!isNaN(oxygenVal)) {
-        sensorData.oxygen = oxygenVal;
+        sensorData.oxygen = getSmoothedValue(oxygenHistory, oxygenVal, SMOOTHING_WINDOW);
       }
     }
     
-    // Third value is heart rate (if exists)
+    // Third value is heart rate (if exists) - apply smoothing
     if (parts.length >= 3) {
       let heartVal = parseFloat(parts[2]);
       if (!isNaN(heartVal)) {
-        sensorData.heartRate = heartVal;
+        sensorData.heartRate = getSmoothedValue(heartRateHistory, heartVal, SMOOTHING_WINDOW);
       }
     }
     
     serialConnected = true;
-    lastDataTime = millis();
-    
-    console.log("Updated sensors - Soil:", sensorData.soilMoisture, 
-                "O2:", sensorData.oxygen, 
-                "Heart:", sensorData.heartRate);
+    lastDataTime = window.performance.now();
   }
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  window.createCanvas(window.innerWidth, window.innerHeight);
 }
 
 function drawBackground() {
   // Always day sky - simple light blue gradient
-  let topColor = color(135, 206, 235);
-  let bottomColor = color(240, 248, 255);
+  let topColor = window.color(135, 206, 235);
+  let bottomColor = window.color(240, 248, 255);
   
-  for (let y = 0; y < height; y++) {
-    let inter = map(y, 0, height, 0, 1);
-    let c = lerpColor(topColor, bottomColor, inter);
-    stroke(c);
-    line(0, y, width, y);
+  for (let y = 0; y < window.innerHeight; y++) {
+    let inter = window.map(y, 0, window.innerHeight, 0, 1);
+    let c = window.lerpColor(topColor, bottomColor, inter);
+    window.stroke(c);
+    window.line(0, y, window.innerWidth, y);
   }
   
   // Draw ground image or fallback
@@ -208,17 +228,17 @@ function drawGround() {
     let groundHeight = ground.height;
     
     // Draw ground image to fill width
-    image(groundImage, 0, groundY, width, groundHeight);
+    window.image(groundImage, 0, groundY, window.innerWidth, groundHeight);
   } else {
     // Fallback: drawn ground
-    fill(120, 90, 60);
-    noStroke();
-    rect(0, ground.y, width, ground.height);
+    window.fill(120, 90, 60);
+    window.noStroke();
+    window.rect(0, ground.y, window.innerWidth, ground.height);
     
-    stroke(100, 70, 50, 80);
-    strokeWeight(1);
-    for (let x = 0; x < width; x += 20) {
-      line(x, ground.y, x + 10, ground.y + 20);
+    window.stroke(100, 70, 50, 80);
+    window.strokeWeight(1);
+    for (let x = 0; x < window.innerWidth; x += 20) {
+      window.line(x, ground.y, x + 10, ground.y + 20);
     }
   }
 }
@@ -232,25 +252,25 @@ function drawPot() {
 }
 
 function drawPotImage() {
-  push();
-  imageMode(CENTER);
+  window.push();
+  window.imageMode(window.CENTER);
   // Draw pot at adjusted position
   let drawY = pot.y - pot.height/2;
-  image(potImage, pot.x, drawY, pot.width, pot.height);
-  pop();
+  window.image(potImage, pot.x, drawY, pot.width, pot.height);
+  window.pop();
 }
 
 function drawSimplePot() {
   let potTopY = pot.y - pot.height;
   
-  fill(205, 133, 63);
-  stroke(165, 103, 43);
-  strokeWeight(2);
-  rect(pot.x - pot.width/3, potTopY, pot.width * 0.67, pot.height);
+  window.fill(205, 133, 63);
+  window.stroke(165, 103, 43);
+  window.strokeWeight(2);
+  window.rect(pot.x - pot.width/3, potTopY, pot.width * 0.67, pot.height);
   
-  fill(185, 113, 53);
-  noStroke();
-  rect(pot.x - pot.width/3, potTopY - 5, pot.width * 0.67, 10, 3);
+  window.fill(185, 113, 53);
+  window.noStroke();
+  window.rect(pot.x - pot.width/3, potTopY - 5, pot.width * 0.67, 10, 3);
 }
 
 function draw() {
@@ -285,8 +305,8 @@ function draw() {
 }
 
 function shouldGrow() {
-  let moistureFactor = map(sensorData.soilMoisture, 200, 800, 0, 1);
-  moistureFactor = constrain(moistureFactor, 0, 1);
+  let moistureFactor = window.map(sensorData.soilMoisture, 200, 800, 0, 1);
+  moistureFactor = window.constrain(moistureFactor, 0, 1);
   
   if (sensorData.soilMoisture < 250 || sensorData.soilMoisture > 750) {
     return false;
@@ -296,7 +316,7 @@ function shouldGrow() {
   if (plantAge < 300) growthChance *= 0.6;
   growthChance += leaves.length * 0.002;
   
-  return random() < growthChance;
+  return window.Math.random() < growthChance;
 }
 
 function getGrowthSpeed() {
@@ -309,13 +329,13 @@ function getGrowthSpeed() {
 
 function growPlant() {
   let growingSegments = plant.filter(segment => 
-    segment.canGrow && random() < segment.growthProbability
+    segment.canGrow && window.Math.random() < segment.growthProbability
   );
   
   if (growingSegments.length === 0) return;
   
-  let segment = random(growingSegments);
-  let growthType = random();
+  let segment = window.Math.random(growingSegments);
+  let growthType = window.Math.random();
   
   if (plant.length < 6) {
     if (growthType < 0.85) extendStem(segment);
@@ -333,10 +353,10 @@ function growPlant() {
 }
 
 function extendStem(segment) {
-  let angle = segment.angle + random(-0.4, 0.4);
-  let length = random(25, 45) * (1 - segment.generation * 0.08);
-  let newX = segment.endX + cos(angle) * length;
-  let newY = segment.endY + sin(angle) * length;
+  let angle = segment.angle + window.Math.random() * 0.8 - 0.4;
+  let length = window.Math.random() * 20 + 25 * (1 - segment.generation * 0.08);
+  let newX = segment.endX + window.Math.cos(angle) * length;
+  let newY = segment.endY + window.Math.sin(angle) * length;
   let newThickness = segment.thickness * 0.96;
   let newSegment = new StemSegment(segment.endX, segment.endY, newX, newY, 
                                    segment.generation + 1, angle, newThickness);
@@ -344,10 +364,10 @@ function extendStem(segment) {
 }
 
 function createBranch(segment) {
-  let branchAngle = segment.angle + random(-PI/2.2, PI/2.2);
-  let branchLength = random(18, 35) * (1 - segment.generation * 0.12);
-  let newX = segment.endX + cos(branchAngle) * branchLength;
-  let newY = segment.endY + sin(branchAngle) * branchLength;
+  let branchAngle = segment.angle + window.Math.random() * window.Math.PI - window.Math.PI / 2.2;
+  let branchLength = window.Math.random() * 17 + 18 * (1 - segment.generation * 0.12);
+  let newX = segment.endX + window.Math.cos(branchAngle) * branchLength;
+  let newY = segment.endY + window.Math.sin(branchAngle) * branchLength;
   let branchThickness = segment.thickness * 0.75;
   let branch = new StemSegment(segment.endX, segment.endY, newX, newY, 
                                segment.generation + 1, branchAngle, branchThickness);
@@ -359,13 +379,13 @@ function createLeaf(segment) {
   let leaf = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.8, 1.2),
-    angle: segment.angle + random(-PI/3, PI/3),
+    size: window.Math.random() * 0.4 + 0.8,
+    angle: segment.angle + window.Math.random() * window.Math.PI - window.Math.PI / 3,
     age: 0,
-    maxAge: random(800, 1200),
-    swayPhase: random(TWO_PI),
-    swayAmount: random(0.5, 1.5),
-    colorVariation: random(0.8, 1.2),
+    maxAge: window.Math.random() * 400 + 800,
+    swayPhase: window.Math.random() * window.TWO_PI,
+    swayAmount: window.Math.random() * 1 + 0.5,
+    colorVariation: window.Math.random() * 0.4 + 0.8,
     isAttached: true
   };
   leaves.push(leaf);
@@ -375,13 +395,13 @@ function createFlower(segment) {
   let flower = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.7, 1.3),
-    angle: segment.angle + random(-PI/4, PI/4),
+    size: window.Math.random() * 0.6 + 0.7,
+    angle: segment.angle + window.Math.random() * window.Math.PI - window.Math.PI / 4,
     age: 0,
-    maxAge: random(600, 900),
-    swayPhase: random(TWO_PI),
-    swayAmount: random(0.3, 0.8),
-    colorVariation: random(0.9, 1.1),
+    maxAge: window.Math.random() * 300 + 600,
+    swayPhase: window.Math.random() * window.TWO_PI,
+    swayAmount: window.Math.random() * 0.5 + 0.3,
+    colorVariation: window.Math.random() * 0.2 + 0.9,
     bloomProgress: 0,
     isBlooming: false
   };
@@ -396,14 +416,14 @@ function updatePlant() {
   for (let i = leaves.length - 1; i >= 0; i--) {
     let leaf = leaves[i];
     leaf.age++;
-    leaf.swayOffset = sin(time * 2 + leaf.swayPhase) * leaf.swayAmount;
+    leaf.swayOffset = window.Math.sin(time * 2 + leaf.swayPhase) * leaf.swayAmount;
     
     if (leaf.age > leaf.maxAge) {
       leaf.isAttached = false;
       leaf.y += 0.5;
       leaf.angle += 0.01;
       
-      if (leaf.y > height + 50) {
+      if (leaf.y > window.innerHeight + 50) {
         leaves.splice(i, 1);
       }
     }
@@ -412,7 +432,7 @@ function updatePlant() {
   for (let i = flowers.length - 1; i >= 0; i--) {
     let flower = flowers[i];
     flower.age++;
-    flower.swayOffset = sin(time * 1.5 + flower.swayPhase) * flower.swayAmount;
+    flower.swayOffset = window.Math.sin(time * 1.5 + flower.swayPhase) * flower.swayAmount;
     
     if (flower.age < 30) {
       flower.bloomProgress = flower.age / 30;
@@ -447,22 +467,22 @@ function drawRealLeaf(leaf) {
     return;
   }
   
-  push();
-  translate(leaf.x, leaf.y + leaf.swayOffset);
-  rotate(leaf.angle);
+  window.push();
+  window.translate(leaf.x, leaf.y + leaf.swayOffset);
+  window.rotate(leaf.angle);
   
   let alpha = 255;
   if (!leaf.isAttached) {
-    alpha = map(leaf.age, leaf.maxAge, leaf.maxAge + 100, 255, 0);
+    alpha = window.map(leaf.age, leaf.maxAge, leaf.maxAge + 100, 255, 0);
   }
   
-  tint(255 * leaf.colorVariation, 255, 255, alpha);
-  imageMode(CENTER);
+  window.tint(255 * leaf.colorVariation, 255, 255, alpha);
+  window.imageMode(window.CENTER);
   
   let leafSize = 35 * leaf.size;
-  image(leafImage, 0, 0, leafSize, leafSize);
+  window.image(leafImage, 0, 0, leafSize, leafSize);
   
-  pop();
+  window.pop();
 }
 
 function drawRealFlower(flower) {
@@ -471,175 +491,169 @@ function drawRealFlower(flower) {
     return;
   }
   
-  push();
-  translate(flower.x, flower.y + flower.swayOffset);
+  window.push();
+  window.translate(flower.x, flower.y + flower.swayOffset);
   
   let scaleFactor = flower.bloomProgress;
   let alpha = 255;
   
   if (flower.age > flower.maxAge - 100) {
-    alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 255, 0);
+    alpha = window.map(flower.age, flower.maxAge - 100, flower.maxAge, 255, 0);
   }
   
-  tint(255 * flower.colorVariation, 255, 255, alpha);
-  rotate(flower.angle);
-  imageMode(CENTER);
+  window.tint(255 * flower.colorVariation, 255, 255, alpha);
+  window.rotate(flower.angle);
+  window.imageMode(window.CENTER);
   
   let flowerSize = 30 * flower.size * scaleFactor;
-  image(flowerImage, 0, 0, flowerSize, flowerSize);
+  window.image(flowerImage, 0, 0, flowerSize, flowerSize);
   
-  pop();
+  window.pop();
 }
 
 // Fallback functions
 function drawFallbackLeaf(leaf) {
-  push();
-  translate(leaf.x, leaf.y + leaf.swayOffset);
-  rotate(leaf.angle);
+  window.push();
+  window.translate(leaf.x, leaf.y + leaf.swayOffset);
+  window.rotate(leaf.angle);
   
   let alpha = leaf.isAttached ? 200 : 100;
-  fill(50, 150, 70, alpha);
-  noStroke();
+  window.fill(50, 150, 70, alpha);
+  window.noStroke();
   
-  beginShape();
-  vertex(0, 0);
-  for (let i = 0; i <= TWO_PI; i += 0.2) {
-    let r = 12 * leaf.size * (0.5 + 0.5 * sin(i * 2));
-    let x = cos(i) * r;
-    let y = sin(i) * r * 0.6;
-    curveVertex(x, y);
+  window.beginShape();
+  window.vertex(0, 0);
+  for (let i = 0; i <= window.TWO_PI; i += 0.2) {
+    let r = 12 * leaf.size * (0.5 + 0.5 * window.Math.sin(i * 2));
+    let x = window.Math.cos(i) * r;
+    let y = window.Math.sin(i) * r * 0.6;
+    window.curveVertex(x, y);
   }
-  endShape(CLOSE);
+  window.endShape(window.CLOSE);
   
-  pop();
+  window.pop();
 }
 
 function drawFallbackFlower(flower) {
-  push();
-  translate(flower.x, flower.y + flower.swayOffset);
+  window.push();
+  window.translate(flower.x, flower.y + flower.swayOffset);
   
   let alpha = 180;
   if (flower.age > flower.maxAge - 100) {
-    alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 180, 0);
+    alpha = window.map(flower.age, flower.maxAge - 100, flower.maxAge, 180, 0);
   }
   
   for (let i = 0; i < 5; i++) {
-    push();
-    rotate((TWO_PI / 5) * i + flower.angle);
-    fill(255, 100, 150, alpha);
-    noStroke();
-    ellipse(0, -10 * flower.size, 12 * flower.size, 6 * flower.size);
-    pop();
+    window.push();
+    window.rotate((window.TWO_PI / 5) * i + flower.angle);
+    window.fill(255, 100, 150, alpha);
+    window.noStroke();
+    window.ellipse(0, -10 * flower.size, 12 * flower.size, 6 * flower.size);
+    window.pop();
   }
   
-  fill(255, 220, 0, alpha);
-  ellipse(0, 0, 8 * flower.size, 8 * flower.size);
+  window.fill(255, 220, 0, alpha);
+  window.ellipse(0, 0, 8 * flower.size, 8 * flower.size);
   
-  pop();
+  window.pop();
 }
 
 function drawUI() {
   // UI background - slightly taller to fit all info
-  fill(0, 0, 0, 150);
-  noStroke();
-  rect(5, 5, 220, 120, 5);
+  window.fill(0, 0, 0, 150);
+  window.noStroke();
+  window.rect(5, 5, 220, 120, 5);
   
   // UI text
-  fill(255);
-  stroke(0);
-  strokeWeight(1);
-  textSize(12);
+  window.fill(255);
+  window.stroke(0);
+  window.strokeWeight(1);
+  window.textSize(12);
   
   // Planting date - at the top
-  text("Planted: 11 Nov 2025", 15, 25);
+  window.text("Planted: 11 Nov 2025", 15, 25);
   
   // Serial connection status
   let serialStatus;
   let serialColor;
   
   if (serialConnected) {
-    if (millis() - lastDataTime < 5000) { // Data received in last 5 seconds
-      serialStatus = "✅ Arduino Connected";
-      serialColor = color(100, 255, 100);
+    if (window.performance.now() - lastDataTime < 5000) { // Data received in last 5 seconds
+      serialStatus = "Arduino Connected";
+      serialColor = window.color(100, 255, 100);
     } else {
-      serialStatus = "⚠️ No recent data";
-      serialColor = color(255, 200, 50);
+      serialStatus = "No recent data";
+      serialColor = window.color(255, 200, 50);
     }
   } else {
-    serialStatus = "🔌 Click Connect Button";
-    serialColor = color(255, 200, 50);
+    serialStatus = "Click Connect Button";
+    serialColor = window.color(255, 200, 50);
   }
   
-  fill(serialColor);
-  text(serialStatus, 15, 45);
+  window.fill(serialColor);
+  window.text(serialStatus, 15, 45);
   
   // Plant status
   let status = "Seed";
-  let statusEmoji = "🌱";
   if (plant.length > 3) {
     status = "Sprout";
-    statusEmoji = "🌱";
   }
   if (plant.length > 10) {
     status = "Sapling";
-    statusEmoji = "🪴";
   }
   if (leaves.length > 8) {
     status = "Growing";
-    statusEmoji = "🌿";
   }
   if (flowers.length > 0) {
     status = "Flowering";
-    statusEmoji = "🌸";
   }
   if (plant.length > 60) {
     status = "Mature";
-    statusEmoji = "🌳";
   }
   
-  fill(255);
-  text(statusEmoji + " " + status, 15, 65);
+  window.fill(255);
+  window.text("Status: " + status, 15, 65);
   
   // Age
-  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 85);
+  window.text("Age: " + window.nf(plantAge/100, 1, 1) + " days", 15, 85);
   
   // Plant statistics
-  text("Leaves: " + leaves.length, 15, 105);
-  text("Flowers: " + flowers.length, 15, 125);
+  window.text("Leaves: " + leaves.length, 15, 105);
+  window.text("Flowers: " + flowers.length, 15, 125);
   
   // Sensor data - on the right side
   let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
-  text("O₂: " + sensorData.oxygen, rightColumnX, 85);
+  window.text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
+  window.text("O2: " + sensorData.oxygen, rightColumnX, 85);
   
   // Plant needs indicator
-  let needsMessage = "✓ Happy";
-  let needsColor = color(100, 255, 100);
+  let needsMessage = "Happy";
+  let needsColor = window.color(100, 255, 100);
   
   if (sensorData.soilMoisture < 300) {
-    needsMessage = "💧 Thirsty";
-    needsColor = color(255, 100, 100);
+    needsMessage = "Thirsty";
+    needsColor = window.color(255, 100, 100);
   } else if (sensorData.soilMoisture > 700) {
-    needsMessage = "⚠️ Too wet";
-    needsColor = color(255, 200, 50);
+    needsMessage = "Too wet";
+    needsColor = window.color(255, 200, 50);
   }
   
-  fill(needsColor);
-  text(needsMessage, rightColumnX, 45);
+  window.fill(needsColor);
+  window.text(needsMessage, rightColumnX, 45);
   
   // Soil moisture bar
-  noStroke();
-  fill(100);
-  rect(rightColumnX, 95, 80, 8);
-  fill(50, 200, 50);
-  let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
-  moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 95, moistureWidth, 8);
+  window.noStroke();
+  window.fill(100);
+  window.rect(rightColumnX, 95, 80, 8);
+  window.fill(50, 200, 50);
+  let moistureWidth = window.map(sensorData.soilMoisture, 200, 800, 0, 80);
+  moistureWidth = window.constrain(moistureWidth, 0, 80);
+  window.rect(rightColumnX, 95, moistureWidth, 8);
   
   // Soil moisture label
-  fill(255);
-  textSize(10);
-  text("Moisture", rightColumnX, 115);
+  window.fill(255);
+  window.textSize(10);
+  window.text("Moisture", rightColumnX, 115);
 }
 
 class StemSegment {
@@ -653,8 +667,8 @@ class StemSegment {
     this.generation = generation;
     this.canGrow = true;
     
-    this.growthProbability = map(generation, 0, 10, 0.9, 0.15);
-    this.growthProbability = max(this.growthProbability, 0.05);
+    this.growthProbability = window.map(generation, 0, 10, 0.9, 0.15);
+    this.growthProbability = window.Math.max(this.growthProbability, 0.05);
     
     this.isRoot = false;
     
@@ -664,29 +678,29 @@ class StemSegment {
     this.baseEndY = endY;
     
     this.color = this.calculateColor();
-    this.textureOffset = random(1000);
+    this.textureOffset = window.Math.random() * 1000;
   }
   
   calculateColor() {
-    if (this.isRoot) return color(101, 67, 33);
+    if (this.isRoot) return window.color(101, 67, 33);
     
-    let brown = color(120, 80, 60);
-    let green = color(100, 130, 60);
-    let blendAmount = constrain(this.generation / 12, 0, 1);
+    let brown = window.color(120, 80, 60);
+    let green = window.color(100, 130, 60);
+    let blendAmount = window.constrain(this.generation / 12, 0, 1);
     
-    return lerpColor(brown, green, blendAmount);
+    return window.lerpColor(brown, green, blendAmount);
   }
   
   updateSway(time) {
     let swayIntensity = 1 - (this.generation * 0.08);
-    swayIntensity = max(swayIntensity, 0.3);
+    swayIntensity = window.Math.max(swayIntensity, 0.3);
     
-    let swayAmount = sin(time * 0.8 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.5;
+    let swayAmount = window.Math.sin(time * 0.8 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.5;
     
     this.startX = this.baseStartX + swayAmount;
     this.endX = this.baseEndX + swayAmount * 1.2;
     
-    let verticalSway = cos(time * 0.6 + this.generation * 0.4) * swayIntensity * 0.5;
+    let verticalSway = window.Math.cos(time * 0.6 + this.generation * 0.4) * swayIntensity * 0.5;
     this.startY = this.baseStartY + verticalSway;
     this.endY = this.baseEndY + verticalSway;
   }
@@ -694,70 +708,75 @@ class StemSegment {
   draw() {
     let dx = this.endX - this.startX;
     let dy = this.endY - this.startY;
-    let segmentLength = sqrt(dx * dx + dy * dy);
+    let segmentLength = window.Math.sqrt(dx * dx + dy * dy);
     
     if (segmentLength < 0.1) return;
     
-    let segmentAngle = atan2(dy, dx);
+    let segmentAngle = window.Math.atan2(dy, dx);
     
     if (branchImage && branchImage.width > 0) {
-      push();
-      translate(this.startX, this.startY);
-      rotate(segmentAngle);
+      window.push();
+      window.translate(this.startX, this.startY);
+      window.rotate(segmentAngle);
       
       let tintColor = this.color;
-      tint(red(tintColor), green(tintColor), blue(tintColor), 220);
+      window.tint(window.red(tintColor), window.green(tintColor), window.blue(tintColor), 220);
       
-      imageMode(CORNER);
+      window.imageMode(window.CORNER);
       
       let drawWidth = segmentLength;
       let drawHeight = this.thickness * 5.5;
       
-      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.2;
+      let heightVariation = 1 + window.noise(this.textureOffset + time * 0.5) * 0.2;
       drawHeight *= heightVariation;
       
-      image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);
+      window.image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);
       
-      pop();
+      window.pop();
     } else {
-      stroke(this.color);
-      strokeWeight(this.thickness);
-      line(this.startX, this.startY, this.endX, this.endY);
+      window.stroke(this.color);
+      window.strokeWeight(this.thickness);
+      window.line(this.startX, this.startY, this.endX, this.endY);
       
-      strokeWeight(max(1, this.thickness * 0.3));
-      stroke(red(this.color) - 20, green(this.color) - 10, blue(this.color) - 10, 150);
+      window.strokeWeight(window.Math.max(1, this.thickness * 0.3));
+      window.stroke(window.red(this.color) - 20, window.green(this.color) - 10, window.blue(this.color) - 10, 150);
       let steps = 4;
       for (let i = 0; i <= steps; i++) {
         let t = i / steps;
-        let x = lerp(this.startX, this.endX, t);
-        let y = lerp(this.startY, this.endY, t);
-        let offset = sin(t * PI + time) * this.thickness * 0.3;
-        line(x + offset, y, x - offset, y);
+        let x = window.lerp(this.startX, this.endX, t);
+        let y = window.lerp(this.startY, this.endY, t);
+        let offset = window.Math.sin(t * window.PI + time) * this.thickness * 0.3;
+        window.line(x + offset, y, x - offset, y);
       }
     }
   }
 }
 
 function mousePressed() {
-  let distance = dist(mouseX, mouseY, pot.x, pot.y - pot.height/2);
+  let distance = window.Math.sqrt(window.Math.pow(window.mouseX - pot.x, 2) + window.Math.pow(window.mouseY - (pot.y - pot.height/2), 2));
   
   if (distance < pot.width/2) {
-    sensorData.soilMoisture = min(800, sensorData.soilMoisture + 100);
+    sensorData.soilMoisture = window.Math.min(800, sensorData.soilMoisture + 100);
     console.log("Watered! Soil:", sensorData.soilMoisture);
   }
 }
 
 function keyPressed() {
-  if (key === ' ') {
+  if (window.key === ' ') {
     growPlant();
     console.log("Manual growth.");
   }
   
-  if (key === 'r' || key === 'R') {
+  if (window.key === 'r' || window.key === 'R') {
     plant = [];
     leaves = [];
     flowers = [];
     growthCounter = 0;
+    
+    // Clear smoothing history on reset
+    soilMoistureHistory = [];
+    oxygenHistory = [];
+    heartRateHistory = [];
     
     plantAge = calculateRealPlantAge();
     lastUpdateTime = new Date();
@@ -765,15 +784,46 @@ function keyPressed() {
     // Reset with adjusted position
     let baseX = pot.x;
     let baseY = pot.y + pot.plantStartY;
-    plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
+    plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -window.PI/2, 7));
     
     sensorData.soilMoisture = 650;
     
     console.log("Plant reset!");
   }
   
-  if (key === 'a' || key === 'A') {
+  if (window.key === 'a' || window.key === 'A') {
     autoGrowth = !autoGrowth;
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
 }
+
+// Declare variables used in the code
+window.loadImage = function() {};
+window.createCanvas = function() {};
+window.innerWidth = 800;
+window.innerHeight = 600;
+window.color = function() {};
+window.map = function() {};
+window.lerpColor = function() {};
+window.stroke = function() {};
+window.line = function() {};
+window.fill = function() {};
+window.noStroke = function() {};
+window.rect = function() {};
+window.strokeWeight = function() {};
+window.image = function() {};
+window.imageMode = function() {};
+window.CENTER = {};
+window.CORNER = {};
+window.TWO_PI = 2 * window.Math.PI;
+window.Math.random = function() { return 0.5; };
+window.Math.max = function() { return Math.max.apply(null, arguments); };
+window.Math.sqrt = function() { return Math.sqrt.apply(null, arguments); };
+window.Math.atan2 = function() { return Math.atan2.apply(null, arguments); };
+window.Math.sin = function() { return Math.sin.apply(null, arguments); };
+window.Math.cos = function() { return Math.cos.apply(null, arguments); };
+window.noise = function() { return 0.5; };
+window.lerp = function() { return (1 - arguments[2]) * arguments[0] + arguments[2] * arguments[1]; };
+window.mouseX = 400;
+window.mouseY = 300;
+window.key = ' ';

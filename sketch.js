@@ -95,31 +95,7 @@ function getSmoothedValue(history, newValue, windowSize) {
   return Math.round(sum / history.length);
 }
 
-
-  // === RESPONSIVE POSITIONING ===
-function calculateResponsivePositions() {
-  // Center horizontally
-  POT_ADJUSTMENTS.x = windowWidth / 2;
   
-  // Ground fills bottom portion of screen
-  GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
-  GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
-  
-  // Position pot ON the ground (pot bottom sits at ground level, slightly embedded)
-  // The pot's y coordinate is its center, so we position it so the bottom edge
-  // is slightly below the ground surface (embedded look)
-  let potEmbedAmount = 20; // How deep the pot sinks into the ground
-  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
-  
-  // Apply to pot object
-  pot.x = POT_ADJUSTMENTS.x;
-  pot.y = POT_ADJUSTMENTS.y;
-  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
-  
-  // Apply to ground object
-  ground.y = GROUND_ADJUSTMENTS.y;
-  ground.height = GROUND_ADJUSTMENTS.height;
-}
 
 function calculateRealPlantAge() {
   const now = new Date();

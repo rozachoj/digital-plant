@@ -2,6 +2,12 @@
 let serialConnected = false;
 let lastDataTime = 0;
 
+// === SMOOTHING FOR STABLE SENSOR VALUES ===
+const SMOOTHING_WINDOW = 10;
+let soilMoistureHistory = [];
+let oxygenHistory = [];
+let heartRateHistory = [];
+
 // Sensor data
 let sensorData = {
   soilMoisture: 600,
@@ -29,10 +35,10 @@ let flowerImage;
 let potImage;
 let groundImage;
 
-// === ADJUSTMENT VARIABLES - MOVED EVERYTHING UP BY 150 PIXELS ===
+// === RESPONSIVE ADJUSTMENT VARIABLES ===
 let POT_ADJUSTMENTS = {
-  x: 400,           // Horizontal position (center is 400)
-  y: 480,           // CHANGED: 480 instead of 630 (moved up 150)
+  x: 0,
+  y: 0,
   width: 200,
   height: 160,
   scale: 0.1,
@@ -40,41 +46,75 @@ let POT_ADJUSTMENTS = {
 };
 
 let GROUND_ADJUSTMENTS = {
-  y: 250,           // CHANGED: 250 instead of 400 (moved up 150)
+  y: 0,
   height: 200,
   scale: 1.0
 };
 
 // Pot properties
 let pot = {
-  x: POT_ADJUSTMENTS.x,
-  y: POT_ADJUSTMENTS.y,
-  width: POT_ADJUSTMENTS.width,
-  height: POT_ADJUSTMENTS.height,
-  scale: POT_ADJUSTMENTS.scale,
+  x: 0,
+  y: 0,
+  width: 200,
+  height: 160,
+  scale: 0.1,
   imageLoaded: false,
-  plantStartY: POT_ADJUSTMENTS.plantStartY
+  plantStartY: -120
 };
 
 // Ground properties
 let ground = {
-  y: GROUND_ADJUSTMENTS.y,
-  height: GROUND_ADJUSTMENTS.height,
-  scale: GROUND_ADJUSTMENTS.scale,
+  y: 0,
+  height: 200,
+  scale: 1.0,
   imageLoaded: false
 };
 
 function preload() {
-  // Load your plant images
   branchImage = loadImage('fuchsia_branch.png');
   leafImage = loadImage('fuchsia_leaf.png');
   flowerImage = loadImage('fuchsia_flower.png');
   potImage = loadImage('fuchsia_pot.png');
   groundImage = loadImage('ground.png');
   
-  // Pot image callback
   potImage.loadPixels();
   console.log("All images loaded!");
+}
+
+// === SMOOTHING FUNCTION ===
+function getSmoothedValue(history, newValue, windowSize) {
+  history.push(newValue);
+  while (history.length > windowSize) {
+    history.shift();
+  }
+  if (history.length === 0) return newValue;
+  let sum = 0;
+  for (let i = 0; i < history.length; i++) {
+    sum += history[i];
+  }
+  return Math.round(sum / history.length);
+}
+
+// === RESPONSIVE POSITIONING ===
+function calculateResponsivePositions() {
+  // Center horizontally
+  POT_ADJUSTMENTS.x = windowWidth / 2;
+  
+  // Position pot near bottom (15% from bottom)
+  POT_ADJUSTMENTS.y = windowHeight - (windowHeight * 0.15);
+  
+  // Ground fills bottom portion
+  GROUND_ADJUSTMENTS.y = windowHeight - (windowHeight * 0.35);
+  GROUND_ADJUSTMENTS.height = windowHeight * 0.35;
+  
+  // Apply to pot object
+  pot.x = POT_ADJUSTMENTS.x;
+  pot.y = POT_ADJUSTMENTS.y;
+  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
+  
+  // Apply to ground object
+  ground.y = GROUND_ADJUSTMENTS.y;
+  ground.height = GROUND_ADJUSTMENTS.height;
 }
 
 function calculateRealPlantAge() {
@@ -85,22 +125,14 @@ function calculateRealPlantAge() {
 }
 
 function setup() {
-  // Create canvas that fills the window
   createCanvas(windowWidth, windowHeight);
+  
+  // Calculate responsive positions
+  calculateResponsivePositions();
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
   lastUpdateTime = new Date();
-  
-  // Apply pot adjustments
-  pot.x = POT_ADJUSTMENTS.x;
-  pot.y = POT_ADJUSTMENTS.y;
-  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
-  
-  // Apply ground adjustments
-  ground.y = GROUND_ADJUSTMENTS.y;
-  ground.height = GROUND_ADJUSTMENTS.height;
-  ground.scale = GROUND_ADJUSTMENTS.scale;
   
   // Update pot dimensions if image is loaded
   if (potImage.width > 0) {
@@ -120,7 +152,7 @@ function setup() {
   console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   
-  // Start plant from adjusted position
+  // Start plant from responsive position
   let baseX = pot.x;
   let baseY = pot.y + pot.plantStartY;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
@@ -130,12 +162,11 @@ function processSerialData(data) {
   if (!data) return;
   
   data = data.trim();
+  if (data.length === 0) return;
+  
   console.log("Raw data received:", data);
   
-  // Try different parsing methods
   let parts;
-  
-  // Check what separator is used
   if (data.includes(',')) {
     parts = data.split(',');
   } else if (data.includes(';')) {
@@ -147,25 +178,22 @@ function processSerialData(data) {
   console.log("Parsed parts:", parts);
   
   if (parts.length >= 1) {
-    // First value is soil moisture
     let soilVal = parseFloat(parts[0]);
     if (!isNaN(soilVal)) {
-      sensorData.soilMoisture = soilVal;
+      sensorData.soilMoisture = getSmoothedValue(soilMoistureHistory, soilVal, SMOOTHING_WINDOW);
     }
     
-    // Second value is oxygen (if exists)
     if (parts.length >= 2) {
       let oxygenVal = parseFloat(parts[1]);
       if (!isNaN(oxygenVal)) {
-        sensorData.oxygen = oxygenVal;
+        sensorData.oxygen = getSmoothedValue(oxygenHistory, oxygenVal, SMOOTHING_WINDOW);
       }
     }
     
-    // Third value is heart rate (if exists)
     if (parts.length >= 3) {
       let heartVal = parseFloat(parts[2]);
       if (!isNaN(heartVal)) {
-        sensorData.heartRate = heartVal;
+        sensorData.heartRate = getSmoothedValue(heartRateHistory, heartVal, SMOOTHING_WINDOW);
       }
     }
     
@@ -180,10 +208,46 @@ function processSerialData(data) {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  
+  // Store old positions
+  let oldPotX = pot.x;
+  let oldPotY = pot.y + pot.plantStartY;
+  
+  // Recalculate responsive positions
+  calculateResponsivePositions();
+  
+  // Calculate offset
+  let newPotX = pot.x;
+  let newPotY = pot.y + pot.plantStartY;
+  let offsetX = newPotX - oldPotX;
+  let offsetY = newPotY - oldPotY;
+  
+  // Move all plant segments
+  for (let segment of plant) {
+    segment.baseStartX += offsetX;
+    segment.baseStartY += offsetY;
+    segment.baseEndX += offsetX;
+    segment.baseEndY += offsetY;
+    segment.startX += offsetX;
+    segment.startY += offsetY;
+    segment.endX += offsetX;
+    segment.endY += offsetY;
+  }
+  
+  // Move all leaves
+  for (let leaf of leaves) {
+    leaf.x += offsetX;
+    leaf.y += offsetY;
+  }
+  
+  // Move all flowers
+  for (let flower of flowers) {
+    flower.x += offsetX;
+    flower.y += offsetY;
+  }
 }
 
 function drawBackground() {
-  // Always day sky - simple light blue gradient
   let topColor = color(135, 206, 235);
   let bottomColor = color(240, 248, 255);
   
@@ -194,23 +258,16 @@ function drawBackground() {
     line(0, y, width, y);
   }
   
-  // Draw ground image or fallback
   drawGround();
-  
-  // Draw pot on top of ground
   drawPot();
 }
 
 function drawGround() {
   if (groundImage && groundImage.width > 0) {
-    // Draw ground image with adjustments
     let groundY = ground.y;
     let groundHeight = ground.height;
-    
-    // Draw ground image to fill width
     image(groundImage, 0, groundY, width, groundHeight);
   } else {
-    // Fallback: drawn ground
     fill(120, 90, 60);
     noStroke();
     rect(0, ground.y, width, ground.height);
@@ -234,7 +291,6 @@ function drawPot() {
 function drawPotImage() {
   push();
   imageMode(CENTER);
-  // Draw pot at adjusted position
   let drawY = pot.y - pot.height/2;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
@@ -258,7 +314,6 @@ function draw() {
   
   time += 0.02;
   
-  // Update plant age in real time
   const now = new Date();
   if (lastUpdateTime) {
     const timePassed = now - lastUpdateTime;
@@ -267,7 +322,6 @@ function draw() {
   }
   lastUpdateTime = now;
   
-  // Auto growth - ALWAYS ACTIVE
   if (autoGrowth) {
     growthCounter++;
     let growthSpeed = getGrowthSpeed();
@@ -491,7 +545,6 @@ function drawRealFlower(flower) {
   pop();
 }
 
-// Fallback functions
 function drawFallbackLeaf(leaf) {
   push();
   translate(leaf.x, leaf.y + leaf.swayOffset);
@@ -539,95 +592,67 @@ function drawFallbackFlower(flower) {
 }
 
 function drawUI() {
-  // UI background - slightly taller to fit all info
   fill(0, 0, 0, 150);
   noStroke();
   rect(5, 5, 220, 120, 5);
   
-  // UI text
   fill(255);
   stroke(0);
   strokeWeight(1);
   textSize(12);
   
-  // Planting date - at the top
   text("Planted: 11 Nov 2025", 15, 25);
   
-  // Serial connection status
   let serialStatus;
   let serialColor;
   
   if (serialConnected) {
-    if (millis() - lastDataTime < 5000) { // Data received in last 5 seconds
-      serialStatus = "✅ Arduino Connected";
+    if (millis() - lastDataTime < 5000) {
+      serialStatus = "Arduino Connected";
       serialColor = color(100, 255, 100);
     } else {
-      serialStatus = "⚠️ No recent data";
+      serialStatus = "No recent data";
       serialColor = color(255, 200, 50);
     }
   } else {
-    serialStatus = "🔌 Click Connect Button";
+    serialStatus = "Click Connect Button";
     serialColor = color(255, 200, 50);
   }
   
   fill(serialColor);
   text(serialStatus, 15, 45);
   
-  // Plant status
   let status = "Seed";
-  let statusEmoji = "🌱";
-  if (plant.length > 3) {
-    status = "Sprout";
-    statusEmoji = "🌱";
-  }
-  if (plant.length > 10) {
-    status = "Sapling";
-    statusEmoji = "🪴";
-  }
-  if (leaves.length > 8) {
-    status = "Growing";
-    statusEmoji = "🌿";
-  }
-  if (flowers.length > 0) {
-    status = "Flowering";
-    statusEmoji = "🌸";
-  }
-  if (plant.length > 60) {
-    status = "Mature";
-    statusEmoji = "🌳";
-  }
+  if (plant.length > 3) status = "Sprout";
+  if (plant.length > 10) status = "Sapling";
+  if (leaves.length > 8) status = "Growing";
+  if (flowers.length > 0) status = "Flowering";
+  if (plant.length > 60) status = "Mature";
   
   fill(255);
-  text(statusEmoji + " " + status, 15, 65);
-  
-  // Age
+  text("Status: " + status, 15, 65);
   text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 85);
-  
-  // Plant statistics
   text("Leaves: " + leaves.length, 15, 105);
   text("Flowers: " + flowers.length, 15, 125);
   
-  // Sensor data - on the right side
   let rightColumnX = 135;
   text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
-  text("O₂: " + sensorData.oxygen, rightColumnX, 85);
+  text("O2: " + sensorData.oxygen, rightColumnX, 85);
   
-  // Plant needs indicator
-  let needsMessage = "✓ Happy";
+  let needsMessage = "Happy";
   let needsColor = color(100, 255, 100);
   
   if (sensorData.soilMoisture < 300) {
-    needsMessage = "💧 Thirsty";
+    needsMessage = "Thirsty";
     needsColor = color(255, 100, 100);
   } else if (sensorData.soilMoisture > 700) {
-    needsMessage = "⚠️ Too wet";
+    needsMessage = "Too wet";
     needsColor = color(255, 200, 50);
   }
   
   fill(needsColor);
   text(needsMessage, rightColumnX, 45);
   
-  // Soil moisture bar
   noStroke();
   fill(100);
   rect(rightColumnX, 95, 80, 8);
@@ -636,7 +661,6 @@ function drawUI() {
   moistureWidth = constrain(moistureWidth, 0, 80);
   rect(rightColumnX, 95, moistureWidth, 8);
   
-  // Soil moisture label
   fill(255);
   textSize(10);
   text("Moisture", rightColumnX, 115);
@@ -762,7 +786,7 @@ function keyPressed() {
     plantAge = calculateRealPlantAge();
     lastUpdateTime = new Date();
     
-    // Reset with adjusted position
+    // Reset with responsive position
     let baseX = pot.x;
     let baseY = pot.y + pot.plantStartY;
     plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));

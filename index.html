@@ -17,7 +17,7 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,100,0,0.8);
             color: white;
             border: none;
             padding: 10px 15px;
@@ -28,7 +28,7 @@
             z-index: 1000;
         }
         #connect-btn:hover {
-            background: rgba(0,100,0,0.8);
+            background: rgba(0,150,0,0.8);
         }
         #status {
             position: absolute;
@@ -41,6 +41,7 @@
             font-family: Arial, sans-serif;
             font-size: 11px;
             z-index: 1000;
+            display: none;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
@@ -54,55 +55,62 @@
     <script>
         // Web Serial API connection
         let serialPort;
-        let reader;
-        let textDecoder = new TextDecoder();
         
         async function connectSerial() {
             try {
                 // Request serial port access
                 serialPort = await navigator.serial.requestPort();
                 
-                // Open the port
+                // Open the port with 9600 baud rate (standard for Arduino)
                 await serialPort.open({ baudRate: 9600 });
                 
-                document.getElementById('status').textContent = 'Connected to Arduino';
+                document.getElementById('status').textContent = '✅ Connected to Arduino';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(0,150,0,0.8)';
                 document.getElementById('connect-btn').textContent = '✅ Connected';
                 document.getElementById('connect-btn').style.background = 'rgba(0,150,0,0.8)';
+                
+                console.log("Serial port opened successfully!");
                 
                 // Start reading data
                 readSerialData();
                 
             } catch (err) {
                 console.error('Serial connection error:', err);
-                document.getElementById('status').textContent = 'Connection failed: ' + err.message;
+                document.getElementById('status').textContent = '❌ Connection failed';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(255,50,50,0.8)';
             }
         }
         
         async function readSerialData() {
-            try {
-                while (serialPort.readable) {
-                    reader = serialPort.readable.getReader();
-                    
-                    try {
-                        while (true) {
-                            const { value, done } = await reader.read();
-                            if (done) break;
-                            
-                            // Convert received data to string
-                            const text = textDecoder.decode(value);
-                            
-                            // Send to p5.js sketch (global function)
-                            if (window.handleSerialData) {
-                                window.handleSerialData(text);
-                            }
+            const textDecoder = new TextDecoder();
+            
+            while (serialPort.readable) {
+                const reader = serialPort.readable.getReader();
+                
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            console.log("Serial reading done");
+                            break;
                         }
-                    } finally {
-                        reader.releaseLock();
+                        
+                        // Convert received data to string
+                        const text = textDecoder.decode(value);
+                        
+                        // Send to p5.js sketch (global function)
+                        if (window.handleSerialData) {
+                            window.handleSerialData(text);
+                        }
                     }
+                } catch (err) {
+                    console.error('Error reading serial:', err);
+                    document.getElementById('status').textContent = '❌ Read error';
+                } finally {
+                    reader.releaseLock();
                 }
-            } catch (err) {
-                console.error('Error reading serial:', err);
-                document.getElementById('status').textContent = 'Read error';
             }
         }
     </script>

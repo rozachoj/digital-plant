@@ -1,3 +1,7 @@
+// === SERIAL COMMUNICATION ===
+let serial;
+let portName = 'COM6'; // Change this to your Arduino port
+
 // Sensor data
 let sensorData = {
   soilMoisture: 600,
@@ -106,10 +110,35 @@ function setup() {
     pot.imageLoaded = true;
   }
   
+  // === SERIAL COMMUNICATION SETUP ===
+  serial = new p5.SerialPort();
+  serial.on("connected", serverConnected);
+  serial.on("open", portOpen);
+  serial.on("data", serialEvent);
+  serial.on("error", serialError);
+  serial.on("close", portClose);
+  
+  // For p5.serialport library in web mode
+  if (typeof serial.open === 'function') {
+    serial.open(portName);
+  } else if (typeof serial.openPort === 'function') {
+    // Some versions use openPort
+    serial.openPort(portName);
+  }
+  
+  // Fallback: Try to connect automatically if in web mode
+  setTimeout(function() {
+    if (typeof serial.list === 'function') {
+      serial.list();
+      serial.openPath(portName);
+    }
+  }, 1000);
+  
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
   console.log("Pot position (x, y):", pot.x, pot.y);
   console.log("Ground position (y):", ground.y);
+  console.log("Serial port:", portName);
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   console.log("Press W/S to move pot up/down | I/K to move ground up/down");
   
@@ -117,6 +146,62 @@ function setup() {
   let baseX = pot.x;
   let baseY = pot.y + pot.plantStartY;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
+}
+
+// === SERIAL EVENT HANDLERS ===
+function serverConnected() {
+  console.log("Connected to serial server");
+}
+
+function portOpen() {
+  console.log("Serial port opened on " + portName);
+}
+
+function portClose() {
+  console.log("Serial port closed");
+}
+
+function serialError(err) {
+  console.log("Serial error: " + err);
+}
+
+function serialEvent() {
+  let currentString = serial.readLine();
+  if (!currentString) return;
+  
+  currentString = currentString.trim();
+  console.log("Received: " + currentString);
+  
+  // Parse sensor data from Arduino
+  // Format: "soilMoisture oxygen" or "soilMoisture oxygen heartRate"
+  let sensors = currentString.split(' ');
+  
+  if (sensors.length >= 2) {
+    // Parse soil moisture
+    let soilVal = Number(sensors[0]);
+    if (!isNaN(soilVal)) {
+      sensorData.soilMoisture = soilVal;
+    }
+    
+    // Parse oxygen
+    let oxygenVal = Number(sensors[1]);
+    if (!isNaN(oxygenVal)) {
+      sensorData.oxygen = oxygenVal;
+    }
+    
+    // Parse heart rate if available
+    if (sensors.length >= 3) {
+      let heartVal = Number(sensors[2]);
+      if (!isNaN(heartVal)) {
+        sensorData.heartRate = heartVal;
+      }
+    }
+    
+    // Debug: Log parsed values
+    console.log("Parsed - Soil:", sensorData.soilMoisture, 
+                "O2:", sensorData.oxygen, 
+                "Heart:", sensorData.heartRate);
+  }
 }
 
 function windowResized() {

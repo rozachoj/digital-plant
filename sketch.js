@@ -104,6 +104,10 @@ function calculateRealPlantAge() {
   return ageInDays * 100;
 }
 // === RESPONSIVE POSITIONING ===
+// ADJUSTMENT: Change this value to move pot up/down in the ground
+// Higher number = pot sits lower in ground
+let POT_EMBED_AMOUNT = 60;  // <-- CHANGE THIS NUMBER to adjust pot position
+
 function calculateResponsivePositions() {
   // Center horizontally
   POT_ADJUSTMENTS.x = windowWidth / 2;
@@ -112,9 +116,9 @@ function calculateResponsivePositions() {
   GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
   GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
   
-    // Position pot in the middle of the ground (realistic placement)
-  let groundCenter = GROUND_ADJUSTMENTS.y + GROUND_ADJUSTMENTS.height / 2;
-  POT_ADJUSTMENTS.y = groundCenter + 1000;
+  // Position pot on the ground with adjustable embed amount
+  // POT_EMBED_AMOUNT controls how deep the pot sits in the ground
+  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + POT_EMBED_AMOUNT;
   
   // Apply to pot object
   pot.x = POT_ADJUSTMENTS.x;
@@ -295,11 +299,11 @@ function drawPot() {
 function drawPotImage() {
   push();
   imageMode(CENTER);
-  let drawY = pot.y - pot.height/2;
+  // Draw pot so its BOTTOM edge is at pot.y
+  let drawY = pot.y - pot.height / 2;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
 }
-
 function drawSimplePot() {
   let potTopY = pot.y - pot.height;
   

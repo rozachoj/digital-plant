@@ -95,17 +95,21 @@ function getSmoothedValue(history, newValue, windowSize) {
   return Math.round(sum / history.length);
 }
 
-// === RESPONSIVE POSITIONING ===
+
+  // === RESPONSIVE POSITIONING ===
 function calculateResponsivePositions() {
   // Center horizontally
   POT_ADJUSTMENTS.x = windowWidth / 2;
   
-  // Position pot near bottom (15% from bottom)
-  POT_ADJUSTMENTS.y = windowHeight - (windowHeight * 0.15);
+  // Ground fills bottom portion of screen
+  GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
+  GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
   
-  // Ground fills bottom portion
-  GROUND_ADJUSTMENTS.y = windowHeight - (windowHeight * 0.35);
-  GROUND_ADJUSTMENTS.height = windowHeight * 0.35;
+  // Position pot ON the ground (pot bottom sits at ground level, slightly embedded)
+  // The pot's y coordinate is its center, so we position it so the bottom edge
+  // is slightly below the ground surface (embedded look)
+  let potEmbedAmount = 20; // How deep the pot sinks into the ground
+  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
   
   // Apply to pot object
   pot.x = POT_ADJUSTMENTS.x;

@@ -112,9 +112,9 @@ function calculateResponsivePositions() {
   GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
   GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
   
-  // Position pot ON the ground surface (slightly embedded)
-  let potEmbedAmount = 20;
-  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
+    // Position pot in the middle of the ground (realistic placement)
+  let groundCenter = GROUND_ADJUSTMENTS.y + GROUND_ADJUSTMENTS.height / 2;
+  POT_ADJUSTMENTS.y = groundCenter + pot.height * 0.3;
   
   // Apply to pot object
   pot.x = POT_ADJUSTMENTS.x;

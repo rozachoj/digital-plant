@@ -300,7 +300,7 @@ function drawPotImage() {
   push();
   imageMode(CENTER);
   // POT_GROUND_OFFSET: Increase this number to move pot DOWN into ground
-  let POT_GROUND_OFFSET = 100;  // <-- CHANGE THIS NUMBER
+  let POT_GROUND_OFFSET = 200;  // <-- CHANGE THIS NUMBER
   let drawY = ground.y + POT_GROUND_OFFSET;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();

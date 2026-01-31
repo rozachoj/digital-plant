@@ -48,21 +48,16 @@
     <script src="sketch.js"></script>
 </head>
 <body>
-    <!-- Canvas will be created here by p5.js -->
     <button id="connect-btn" onclick="connectSerial()">Connect Arduino</button>
     <div id="status">Not connected</div>
     
     <script>
-        // Web Serial API connection
         let serialPort;
-        let serialBuffer = ''; // Buffer to accumulate incoming data
+        let serialBuffer = '';
         
         async function connectSerial() {
             try {
-                // Request serial port access
                 serialPort = await navigator.serial.requestPort();
-                
-                // Open the port with 9600 baud rate (standard for Arduino)
                 await serialPort.open({ baudRate: 9600 });
                 
                 document.getElementById('status').textContent = 'Connected to Arduino';
@@ -71,9 +66,6 @@
                 document.getElementById('connect-btn').textContent = 'Connected';
                 document.getElementById('connect-btn').style.background = 'rgba(0,150,0,0.8)';
                 
-                console.log("Serial port opened successfully!");
-                
-                // Start reading data
                 readSerialData();
                 
             } catch (err) {
@@ -93,24 +85,15 @@
                 try {
                     while (true) {
                         const { value, done } = await reader.read();
-                        if (done) {
-                            console.log("Serial reading done");
-                            break;
-                        }
+                        if (done) break;
                         
-                        // Convert received data to string and add to buffer
-                        const text = textDecoder.decode(value);
-                        serialBuffer += text;
+                        serialBuffer += textDecoder.decode(value);
                         
-                        // Process complete lines (ending with newline)
                         let newlineIndex;
                         while ((newlineIndex = serialBuffer.indexOf('\n')) !== -1) {
-                            // Extract the complete line
                             const completeLine = serialBuffer.substring(0, newlineIndex);
-                            // Remove it from buffer
                             serialBuffer = serialBuffer.substring(newlineIndex + 1);
                             
-                            // Send complete line to p5.js sketch
                             if (window.handleSerialData && completeLine.trim()) {
                                 window.handleSerialData(completeLine);
                             }
@@ -118,7 +101,6 @@
                     }
                 } catch (err) {
                     console.error('Error reading serial:', err);
-                    document.getElementById('status').textContent = 'Read error';
                 } finally {
                     reader.releaseLock();
                 }
@@ -127,4 +109,3 @@
     </script>
 </body>
 </html>
-

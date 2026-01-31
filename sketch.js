@@ -40,11 +40,11 @@ let groundImage;
 // =====================================================
 
 // Pot position control
-let potEmbedAmount = 150; // How much pot is embedded in ground (0-300)
+let potEmbedAmount = 100; // How much pot is embedded in ground (0-300)
 let potHorizontalPosition = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
 
 // Plant starting position (relative to pot)
-let plantStartYOffset = 30; // Distance from top of pot where plant starts
+let plantStartYOffset = 60; // Distance from top of pot where plant starts
 let plantStartHeight = 20; // Initial stem height
 
 // =====================================================

@@ -81,7 +81,8 @@ function calculateRealPlantAge() {
 }
 
 function setup() {
-  createCanvas(800, 600);
+  // Creates a canvas that fills the entire browser window
+  createCanvas(windowWidth, windowHeight);
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();

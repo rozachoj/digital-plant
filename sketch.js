@@ -39,7 +39,7 @@ let groundImage;
 // CHANGE THIS NUMBER to move the pot up or down on the ground
 // Higher number = pot sits LOWER (more into the ground)
 // Try values like: 50, 100, 150, 200
-let potEmbedAmount = 0;
+let potEmbedAmount = 100;
 
 // === RESPONSIVE ADJUSTMENT VARIABLES ===
 let POT_ADJUSTMENTS = {
@@ -163,11 +163,13 @@ function setup() {
   
   // Start plant from the pot position (synced with potEmbedAmount)
   let baseX = pot.x;
-  // Plant grows from top of pot: pot center is at ground.y + potEmbedAmount, 
-  // so top of pot is at ground.y + potEmbedAmount - pot.height/2, 
-  // then add plantStartY offset (negative value to go up into pot)
-  let potVisualY = ground.y + potEmbedAmount;
-  let baseY = potVisualY - pot.height/2 + pot.plantStartY;
+  // Pot center is drawn at: ground.y + potEmbedAmount
+  // Pot top is at: ground.y + potEmbedAmount - pot.height/2
+  // Plant starts from pot top + plantStartY offset (plantStartY is negative, so plant grows UP from pot)
+  let potCenterY = ground.y + potEmbedAmount;
+  let potTopY = potCenterY - pot.height/2;
+  let baseY = potTopY + pot.plantStartY;
+  console.log("[v0] Plant base - ground.y:", ground.y, "potEmbedAmount:", potEmbedAmount, "potTopY:", potTopY, "baseY:", baseY);
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
@@ -222,18 +224,20 @@ function processSerialData(data) {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
-  // Store old positions (using visual pot position synced with potEmbedAmount)
+  // Store old positions (matching the drawing calculation)
   let oldPotX = pot.x;
-  let oldPotVisualY = ground.y + potEmbedAmount;
-  let oldPlantBaseY = oldPotVisualY - pot.height/2 + pot.plantStartY;
+  let oldPotCenterY = ground.y + potEmbedAmount;
+  let oldPotTopY = oldPotCenterY - pot.height/2;
+  let oldPlantBaseY = oldPotTopY + pot.plantStartY;
   
   // Recalculate responsive positions
   calculateResponsivePositions();
   
   // Calculate offset to move plant with pot
   let newPotX = pot.x;
-  let newPotVisualY = ground.y + potEmbedAmount;
-  let newPlantBaseY = newPotVisualY - pot.height/2 + pot.plantStartY;
+  let newPotCenterY = ground.y + potEmbedAmount;
+  let newPotTopY = newPotCenterY - pot.height/2;
+  let newPlantBaseY = newPotTopY + pot.plantStartY;
   let offsetX = newPotX - oldPotX;
   let offsetY = newPlantBaseY - oldPlantBaseY;
   
@@ -306,15 +310,16 @@ function drawPot() {
 function drawPotImage() {
   push();
   imageMode(CENTER);
-  // Use potEmbedAmount directly here so changes take effect immediately
-  // This positions the pot relative to ground.y (top of ground)
+  // potEmbedAmount: 0 = pot bottom touches ground line, higher = pot sinks into ground
+  // Calculate: ground.y is top of ground, we want pot CENTER at ground.y + potEmbedAmount
   let drawY = ground.y + potEmbedAmount;
+  console.log("[v0] drawPotImage - ground.y:", ground.y, "potEmbedAmount:", potEmbedAmount, "pot.height:", pot.height, "drawY:", drawY);
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
 }
 
 function drawSimplePot() {
-  // Use potEmbedAmount directly so changes take effect immediately
+  // Same calculation as drawPotImage: pot center at ground.y + potEmbedAmount
   let drawY = ground.y + potEmbedAmount;
   let potTopY = drawY - pot.height/2;
   
@@ -805,10 +810,11 @@ function keyPressed() {
     plantAge = calculateRealPlantAge();
     lastUpdateTime = new Date();
     
-    // Reset with position synced to potEmbedAmount
+    // Reset with position synced to potEmbedAmount (matching setup calculation)
     let baseX = pot.x;
-    let potVisualY = ground.y + potEmbedAmount;
-    let baseY = potVisualY - pot.height/2 + pot.plantStartY;
+    let potCenterY = ground.y + potEmbedAmount;
+    let potTopY = potCenterY - pot.height/2;
+    let baseY = potTopY + pot.plantStartY;
     plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
     
     sensorData.soilMoisture = 650;

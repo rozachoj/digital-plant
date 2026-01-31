@@ -1,6 +1,6 @@
 // Sensor data
 let sensorData = {
-  soilMoisture: 600,  // Start with optimal value
+  soilMoisture: 600,
   oxygen: 350,
   heartRate: 0
 };
@@ -26,19 +26,20 @@ let potImage;
 let groundImage;
 
 // === ADJUSTMENT VARIABLES ===
+// CHANGED: pot.x now uses windowWidth/2 dynamically in setup()
 let POT_ADJUSTMENTS = {
-  x: 400,           // Horizontal position (center is 400)
-  y: 630,           // Vertical position (higher number = lower on screen)
-  width: 200,       // Pot width
-  height: 160,      // Pot height
-  scale: 0.1,       // Scale factor (1.0 = original size)
-  plantStartY: -120  // How far above pot the plant starts (negative = above pot)
+  x: 400,           // Will be updated to windowWidth/2 in setup()
+  y: 630,
+  width: 200,
+  height: 160,
+  scale: 0.1,
+  plantStartY: -120
 };
 
 let GROUND_ADJUSTMENTS = {
-  y: 400,           // Vertical position (where ground starts from top)
-  height: 200,      // Height of ground image
-  scale: 1.0        // Scale factor for ground image
+  y: 400,
+  height: 200,
+  scale: 1.0
 };
 
 // Pot properties
@@ -81,7 +82,11 @@ function calculateRealPlantAge() {
 }
 
 function setup() {
-  createCanvas(800, 600);
+  // === CRITICAL CHANGE: Make canvas fill the window ===
+  createCanvas(windowWidth, windowHeight);
+  
+  // === UPDATED: Center the pot based on window width ===
+  POT_ADJUSTMENTS.x = windowWidth / 2;
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
@@ -106,6 +111,7 @@ function setup() {
   }
   
   console.log("Fuchsia Plant Simulation Started!");
+  console.log("Canvas size:", windowWidth, "x", windowHeight);
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   
   // Start plant from adjusted position
@@ -114,10 +120,17 @@ function setup() {
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
+// === ADD THIS FUNCTION: Handle window resizing ===
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  POT_ADJUSTMENTS.x = windowWidth / 2;
+  pot.x = POT_ADJUSTMENTS.x;
+}
+
 function drawBackground() {
   // Always day sky - simple light blue gradient
-  let topColor = color(135, 206, 235);  // Light blue
-  let bottomColor = color(240, 248, 255);  // Very light blue
+  let topColor = color(135, 206, 235);
+  let bottomColor = color(240, 248, 255);
   
   for (let y = 0; y < height; y++) {
     let inter = map(y, 0, height, 0, 1);
@@ -474,7 +487,7 @@ function drawUI() {
   // UI background - slightly taller to fit all info
   fill(0, 0, 0, 150);
   noStroke();
-  rect(5, 5, 220, 120, 5);  // Made wider: 220px instead of 210px
+  rect(5, 5, 220, 120, 5);
   
   // UI text
   fill(255);
@@ -519,7 +532,7 @@ function drawUI() {
   text("Flowers: " + flowers.length, 15, 105);
   
   // Sensor data - on the right side, MOVED RIGHT
-  let rightColumnX = 135;  // Increased from 120 to 135
+  let rightColumnX = 135;
   text("Soil: " + sensorData.soilMoisture, rightColumnX, 45);
   text("O₂: " + sensorData.oxygen, rightColumnX, 65);
   

@@ -41,7 +41,7 @@ let groundImage;
 // This controls how far down from the TOP of the ground the pot sits
 // LOWER number (like 20) = pot is HIGHER (barely in ground)
 // HIGHER number (like 100) = pot is LOWER (deeper in ground)
-let potEmbedAmount = 150;
+let potEmbedAmount = 100;
 // =====================================================
 
 // Pot properties

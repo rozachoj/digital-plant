@@ -41,7 +41,7 @@ let groundImage;
 // This controls how far down from the TOP of the ground the pot sits
 // LOWER number (like 20) = pot is HIGHER (barely in ground)
 // HIGHER number (like 100) = pot is LOWER (deeper in ground)
-let potEmbedAmount = 150;
+let potEmbedAmount = 60;
 // =====================================================
 
 // Pot properties
@@ -127,7 +127,7 @@ function setup() {
   
   // Start plant from top of pot
   let baseX = pot.x;
-  let baseY = 830;
+  let baseY = 130;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 

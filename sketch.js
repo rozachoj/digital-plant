@@ -25,21 +25,26 @@ let flowerImage;
 let potImage;
 let groundImage;
 
-// === ADJUSTMENT VARIABLES ===
-// CHANGED: pot.x now uses windowWidth/2 dynamically in setup()
+// === RESPONSIVE POSITIONING ===
 let POT_ADJUSTMENTS = {
-  x: 400,           // Will be updated to windowWidth/2 in setup()
-  y: 630,
+  x: 0,           // Will be set to windowWidth/2 in setup()
+  y: 0,           // Will be calculated based on windowHeight
   width: 200,
   height: 160,
-  scale: 0.1,
+  scale: 0.15,    // Slightly increased scale
   plantStartY: -120
 };
 
 let GROUND_ADJUSTMENTS = {
-  y: 400,
+  y: 0,           // Will be calculated based on windowHeight
   height: 200,
   scale: 1.0
+};
+
+// Top bar for visual balance
+let topBar = {
+  height: 40,     // Height of the top bar
+  color: [30, 30, 30, 180]  // Dark semi-transparent
 };
 
 // Pot properties
@@ -69,8 +74,6 @@ function preload() {
   potImage = loadImage('fuchsia_pot.png');
   groundImage = loadImage('ground.png');
   
-  // Pot image callback
-  potImage.loadPixels();
   console.log("All images loaded!");
 }
 
@@ -82,58 +85,72 @@ function calculateRealPlantAge() {
 }
 
 function setup() {
-  // === CRITICAL CHANGE: Make canvas fill the window ===
+  // Create canvas that fills the window
   createCanvas(windowWidth, windowHeight);
   
-  // === UPDATED: Center the pot based on window width ===
-  POT_ADJUSTMENTS.x = windowWidth / 2;
+  // Calculate responsive positions
+  calculatePositions();
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
   lastUpdateTime = new Date();
   
-  // Apply pot adjustments
-  pot.x = POT_ADJUSTMENTS.x;
-  pot.y = POT_ADJUSTMENTS.y;
-  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
-  
-  // Apply ground adjustments
-  ground.y = GROUND_ADJUSTMENTS.y;
-  ground.height = GROUND_ADJUSTMENTS.height;
-  ground.scale = GROUND_ADJUSTMENTS.scale;
-  
-  // Update pot dimensions if image is loaded
-  if (potImage.width > 0) {
-    pot.scale = POT_ADJUSTMENTS.scale;
-    pot.width = potImage.width * pot.scale;
-    pot.height = potImage.height * pot.scale;
-    pot.imageLoaded = true;
-  }
+  // Apply calculated positions
+  updatePotFromAdjustments();
+  updateGroundFromAdjustments();
   
   console.log("Fuchsia Plant Simulation Started!");
-  console.log("Canvas size:", windowWidth, "x", windowHeight);
-  console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
+  console.log("Window size:", windowWidth, "x", windowHeight);
+  console.log("Pot position:", pot.x, pot.y);
+  console.log("Press SPACEBAR to grow | CLICK pot to water | R to reset");
   
-  // Start plant from adjusted position
+  // Start plant from calculated position
   let baseX = pot.x;
   let baseY = pot.y + pot.plantStartY;
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
-// === ADD THIS FUNCTION: Handle window resizing ===
+// Calculate responsive positions based on window size
+function calculatePositions() {
+  // Center pot horizontally
+  POT_ADJUSTMENTS.x = windowWidth / 2;
+  
+  // Position pot in lower 3/4 of screen (above the very bottom)
+  POT_ADJUSTMENTS.y = windowHeight * 0.75;
+  
+  // Position ground just above the pot
+  GROUND_ADJUSTMENTS.y = POT_ADJUSTMENTS.y - 100;
+  
+  // Adjust pot scale based on window width (responsive scaling)
+  let baseScale = 0.15;
+  if (windowWidth < 768) {
+    baseScale = 0.12;  // Smaller on mobile
+  } else if (windowWidth > 1200) {
+    baseScale = 0.18;  // Larger on big screens
+  }
+  POT_ADJUSTMENTS.scale = baseScale;
+}
+
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  POT_ADJUSTMENTS.x = windowWidth / 2;
-  pot.x = POT_ADJUSTMENTS.x;
+  calculatePositions();
+  updatePotFromAdjustments();
+  updateGroundFromAdjustments();
 }
 
 function drawBackground() {
+  // Top bar for visual balance
+  fill(topBar.color[0], topBar.color[1], topBar.color[2], topBar.color[3]);
+  noStroke();
+  rect(0, 0, width, topBar.height);
+  
   // Always day sky - simple light blue gradient
+  // Start gradient below top bar
   let topColor = color(135, 206, 235);
   let bottomColor = color(240, 248, 255);
   
-  for (let y = 0; y < height; y++) {
-    let inter = map(y, 0, height, 0, 1);
+  for (let y = topBar.height; y < height; y++) {
+    let inter = map(y, topBar.height, height, 0, 1);
     let c = lerpColor(topColor, bottomColor, inter);
     stroke(c);
     line(0, y, width, y);
@@ -484,10 +501,13 @@ function drawFallbackFlower(flower) {
 }
 
 function drawUI() {
-  // UI background - slightly taller to fit all info
-  fill(0, 0, 0, 150);
+  // Position UI below the top bar
+  let uiY = topBar.height + 5;
+  
+  // UI background - slightly transparent
+  fill(0, 0, 0, 180);
   noStroke();
-  rect(5, 5, 220, 120, 5);
+  rect(5, uiY, 220, 120, 5);
   
   // UI text
   fill(255);
@@ -496,9 +516,9 @@ function drawUI() {
   textSize(12);
   
   // Planting date - at the top
-  text("Planted: 11 Nov 2025", 15, 25);
+  text("Planted: 11 Nov 2025", 15, uiY + 20);
   
-  // Plant status - moved down
+  // Plant status
   let status = "Seed";
   let statusEmoji = "🌱";
   if (plant.length > 3) {
@@ -522,19 +542,19 @@ function drawUI() {
     statusEmoji = "🌳";
   }
   
-  text(statusEmoji + " " + status, 15, 45);
+  text(statusEmoji + " " + status, 15, uiY + 40);
   
   // Age
-  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 65);
+  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, uiY + 60);
   
   // Plant statistics
-  text("Leaves: " + leaves.length, 15, 85);
-  text("Flowers: " + flowers.length, 15, 105);
+  text("Leaves: " + leaves.length, 15, uiY + 80);
+  text("Flowers: " + flowers.length, 15, uiY + 100);
   
-  // Sensor data - on the right side, MOVED RIGHT
+  // Sensor data - on the right side
   let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 45);
-  text("O₂: " + sensorData.oxygen, rightColumnX, 65);
+  text("Soil: " + sensorData.soilMoisture, rightColumnX, uiY + 40);
+  text("O₂: " + sensorData.oxygen, rightColumnX, uiY + 60);
   
   // Plant needs indicator - simplified
   let needsMessage = "✓ Happy";
@@ -549,21 +569,21 @@ function drawUI() {
   }
   
   fill(needsColor);
-  text(needsMessage, rightColumnX, 25);
+  text(needsMessage, rightColumnX, uiY + 20);
   
-  // Soil moisture bar - smaller, below sensor data
+  // Soil moisture bar
   noStroke();
   fill(100);
-  rect(rightColumnX, 80, 80, 8);
+  rect(rightColumnX, uiY + 75, 80, 8);
   fill(50, 200, 50);
   let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
   moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 80, moistureWidth, 8);
+  rect(rightColumnX, uiY + 75, moistureWidth, 8);
   
   // Soil moisture label
   fill(255);
   textSize(10);
-  text("Moisture", rightColumnX, 100);
+  text("Moisture", rightColumnX, uiY + 95);
 }
 
 class StemSegment {
@@ -686,7 +706,7 @@ function keyPressed() {
     plantAge = calculateRealPlantAge();
     lastUpdateTime = new Date();
     
-    // Reset with adjusted position
+    // Reset with calculated position
     let baseX = pot.x;
     let baseY = pot.y + pot.plantStartY;
     plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
@@ -701,77 +721,18 @@ function keyPressed() {
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
   
-  // Pot adjustment keys (still work but not shown in UI)
-  if (key === '+' || key === '=') {
-    POT_ADJUSTMENTS.scale = min(1.5, POT_ADJUSTMENTS.scale + 0.1);
-    updatePotFromAdjustments();
-    console.log("Pot scale:", POT_ADJUSTMENTS.scale);
-    return false;
-  }
-  
-  if (key === '-' || key === '_') {
-    POT_ADJUSTMENTS.scale = max(0.4, POT_ADJUSTMENTS.scale - 0.1);
-    updatePotFromAdjustments();
-    console.log("Pot scale:", POT_ADJUSTMENTS.scale);
-    return false;
-  }
-  
+  // Manual adjustment keys (for fine-tuning if needed)
   if (key === 'w' || key === 'W') {
-    POT_ADJUSTMENTS.y -= 5;
+    POT_ADJUSTMENTS.y -= 10;
     updatePotFromAdjustments();
     console.log("Pot moved up to y=" + POT_ADJUSTMENTS.y);
     return false;
   }
   
   if (key === 's' || key === 'S') {
-    POT_ADJUSTMENTS.y += 5;
+    POT_ADJUSTMENTS.y += 10;
     updatePotFromAdjustments();
     console.log("Pot moved down to y=" + POT_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'q' || key === 'Q') {
-    POT_ADJUSTMENTS.plantStartY -= 5;
-    updatePotFromAdjustments();
-    console.log("Plant start moved up to", POT_ADJUSTMENTS.plantStartY);
-    return false;
-  }
-  
-  if (key === 'e' || key === 'E') {
-    POT_ADJUSTMENTS.plantStartY += 5;
-    updatePotFromAdjustments();
-    console.log("Plant start moved down to", POT_ADJUSTMENTS.plantStartY);
-    return false;
-  }
-  
-  // Ground adjustment keys (still work but not shown in UI)
-  if (key === 'i' || key === 'I') {
-    GROUND_ADJUSTMENTS.y -= 5;
-    updateGroundFromAdjustments();
-    console.log("Ground moved up to y=" + GROUND_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'k' || key === 'K') {
-    GROUND_ADJUSTMENTS.y += 5;
-    updateGroundFromAdjustments();
-    console.log("Ground moved down to y=" + GROUND_ADJUSTMENTS.y);
-    return false;
-  }
-  
-  if (key === 'j' || key === 'J') {
-    GROUND_ADJUSTMENTS.height -= 5;
-    GROUND_ADJUSTMENTS.height = max(20, GROUND_ADJUSTMENTS.height);
-    updateGroundFromAdjustments();
-    console.log("Ground height decreased to", GROUND_ADJUSTMENTS.height);
-    return false;
-  }
-  
-  if (key === 'l' || key === 'L') {
-    GROUND_ADJUSTMENTS.height += 5;
-    GROUND_ADJUSTMENTS.height = min(300, GROUND_ADJUSTMENTS.height);
-    updateGroundFromAdjustments();
-    console.log("Ground height increased to", GROUND_ADJUSTMENTS.height);
     return false;
   }
 }
@@ -785,6 +746,7 @@ function updatePotFromAdjustments() {
   if (potImage && potImage.width > 0) {
     pot.width = potImage.width * pot.scale;
     pot.height = potImage.height * pot.scale;
+    pot.imageLoaded = true;
   } else {
     pot.width = 200 * pot.scale;
     pot.height = 160 * pot.scale;

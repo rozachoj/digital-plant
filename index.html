@@ -13,13 +13,106 @@
         canvas {
             display: block;
         }
+        #connect-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,100,0,0.8);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        #connect-btn:hover {
+            background: rgba(0,150,0,0.8);
+        }
+        #status {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px;
+            border-radius: 3px;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            z-index: 1000;
+            display: none;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
-    <!-- ADD THIS LINE: p5.serialport library -->
-    <script src="https://cdn.jsdelivr.net/npm/p5.serialport@1.0.2/lib/p5.serialport.js"></script>
     <script src="sketch.js"></script>
 </head>
 <body>
     <!-- Canvas will be created here by p5.js -->
+    <button id="connect-btn" onclick="connectSerial()">🔌 Connect Arduino</button>
+    <div id="status">Not connected</div>
+    
+    <script>
+        // Web Serial API connection
+        let serialPort;
+        
+        async function connectSerial() {
+            try {
+                // Request serial port access
+                serialPort = await navigator.serial.requestPort();
+                
+                // Open the port with 9600 baud rate (standard for Arduino)
+                await serialPort.open({ baudRate: 9600 });
+                
+                document.getElementById('status').textContent = '✅ Connected to Arduino';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(0,150,0,0.8)';
+                document.getElementById('connect-btn').textContent = '✅ Connected';
+                document.getElementById('connect-btn').style.background = 'rgba(0,150,0,0.8)';
+                
+                console.log("Serial port opened successfully!");
+                
+                // Start reading data
+                readSerialData();
+                
+            } catch (err) {
+                console.error('Serial connection error:', err);
+                document.getElementById('status').textContent = '❌ Connection failed';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(255,50,50,0.8)';
+            }
+        }
+        
+        async function readSerialData() {
+            const textDecoder = new TextDecoder();
+            
+            while (serialPort.readable) {
+                const reader = serialPort.readable.getReader();
+                
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            console.log("Serial reading done");
+                            break;
+                        }
+                        
+                        // Convert received data to string
+                        const text = textDecoder.decode(value);
+                        
+                        // Send to p5.js sketch (global function)
+                        if (window.handleSerialData) {
+                            window.handleSerialData(text);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error reading serial:', err);
+                    document.getElementById('status').textContent = '❌ Read error';
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+        }
+    </script>
 </body>
 </html>

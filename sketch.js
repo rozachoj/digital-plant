@@ -36,17 +36,12 @@ let potImage;
 let groundImage;
 
 // =====================================================
-// POSITION CONTROLS - CHANGE THESE TO ADJUST
+// POT POSITION CONTROL - CHANGE THIS NUMBER TO ADJUST
 // =====================================================
-
-// Pot position control
-let potEmbedAmount = 150; // How much pot is embedded in ground (0-300)
-let potHorizontalPosition = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
-
-// Plant starting position (relative to pot)
-let plantStartYOffset = 30; // Distance from top of pot where plant starts
-let plantStartHeight = 20; // Initial stem height
-
+// This controls how far down from the TOP of the ground the pot sits
+// LOWER number (like 20) = pot is HIGHER (barely in ground)
+// HIGHER number (like 100) = pot is LOWER (deeper in ground)
+let potEmbedAmount = 150;
 // =====================================================
 
 // Pot properties
@@ -56,8 +51,7 @@ let pot = {
   width: 200,
   height: 160,
   scale: 0.1,
-  imageLoaded: false,
-  plantStartY: 15 // Where plant emerges from pot (relative to pot top)
+  imageLoaded: false
 };
 
 // Ground properties
@@ -65,9 +59,6 @@ let ground = {
   y: 0,
   height: 200
 };
-
-// Debug flag
-let showDebugInfo = true;
 
 function preload() {
   branchImage = loadImage('fuchsia_branch.png');
@@ -101,8 +92,10 @@ function calculateRealPlantAge() {
   return ageInDays * 100;
 }
 
-function calculatePotPosition() {
-  // Calculate ground position
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  
+  // Calculate ground position (bottom 25% of screen)
   ground.height = windowHeight * 0.25;
   ground.y = windowHeight - ground.height;
   
@@ -114,26 +107,9 @@ function calculatePotPosition() {
     pot.imageLoaded = true;
   }
   
-  // Position pot: horizontally based on potHorizontalPosition, vertically embedded in ground
-  pot.x = windowWidth * potHorizontalPosition;
-  pot.y = ground.y + potEmbedAmount; // Center of pot at ground level + embed amount
-  
-  if (showDebugInfo) {
-    console.log("Pot position recalculated:");
-    console.log("  Ground starts at y:", ground.y);
-    console.log("  Pot center at y:", pot.y);
-    console.log("  Pot top at y:", pot.y - pot.height/2);
-    console.log("  Pot bottom at y:", pot.y + pot.height/2);
-    console.log("  potEmbedAmount:", potEmbedAmount);
-    console.log("  potHorizontalPosition:", potHorizontalPosition);
-  }
-}
-
-function setup() {
-  createCanvas(windowWidth, windowHeight);
-  
-  // Calculate initial positions
-  calculatePotPosition();
+  // Position pot: centered horizontally, embedded in ground
+  pot.x = windowWidth / 2;
+  pot.y = ground.y + potEmbedAmount;
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
@@ -146,37 +122,13 @@ function setup() {
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
-  
-  // Initialize plant
-  resetPlant();
-}
-
-function resetPlant() {
-  plant = [];
-  leaves = [];
-  flowers = [];
-  growthCounter = 0;
-  
-  plantAge = calculateRealPlantAge();
-  lastUpdateTime = new Date();
+  console.log("Ground starts at y:", ground.y);
+  console.log("Pot center at y:", pot.y);
   
   // Start plant from top of pot
-  let potTopY = pot.y - pot.height/2; // Top edge of pot
-  let plantBaseY = potTopY + pot.plantStartY; // Where plant emerges from pot
-  
   let baseX = pot.x;
-  let baseY = plantBaseY - plantStartYOffset;
-  
-  if (showDebugInfo) {
-    console.log("Plant starting position:");
-    console.log("  Base X:", baseX);
-    console.log("  Base Y:", baseY);
-    console.log("  Pot top Y:", potTopY);
-    console.log("  Plant base Y:", plantBaseY);
-    console.log("  plantStartYOffset:", plantStartYOffset);
-  }
-  
-  plant.push(new StemSegment(baseX, baseY, baseX, baseY - plantStartHeight, 0, -PI/2, 7));
+  let baseY = 830;
+  plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
 function processSerialData(data) {
@@ -227,25 +179,25 @@ function processSerialData(data) {
   }
 }
 
+function calculateResponsivePositions() {
+    let newPotX = pot.x;
+  let newPotCenterY = ground.y + potEmbedAmount;
+  let newPotTopY = newPotCenterY - pot.height/2;
+  let newPlantBaseY = newPotTopY + pot.plantStartY;
+  let offsetX = newPotX - oldPotX;
+  let offsetY = newPlantBaseY - oldPlantBaseY;
+}
+
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
-  // Store old positions before recalculation
+  // Store old positions (matching the drawing calculation)
   let oldPotX = pot.x;
-  let oldPotTopY = pot.y - pot.height/2;
+  let oldPotCenterY = ground.y + potEmbedAmount;
+  let oldPotTopY = oldPotCenterY - pot.height/2;
   let oldPlantBaseY = oldPotTopY + pot.plantStartY;
   
-  // Recalculate positions
-  calculatePotPosition();
-  
-  // Calculate offsets
-  let newPotTopY = pot.y - pot.height/2;
-  let newPlantBaseY = newPotTopY + pot.plantStartY;
-  
-  let offsetX = pot.x - oldPotX;
-  let offsetY = newPlantBaseY - oldPlantBaseY;
-  
-  console.log("Window resized - Offsets:", offsetX, offsetY);
+ 
   
   // Move all plant segments
   for (let segment of plant) {
@@ -321,37 +273,32 @@ function drawPot() {
     noStroke();
     rect(pot.x - pot.width/3, potTopY - 5, pot.width * 0.67, 10, 3);
   }
+}
+
+function drawPotImage() {
+  push();
+  imageMode(CENTER);
+  // potEmbedAmount: 0 = pot bottom touches ground line, higher = pot sinks into ground
+  // Calculate: ground.y is top of ground, we want pot CENTER at ground.y + potEmbedAmount
+  let drawY = ground.y + potEmbedAmount;
+  console.log("[v0] drawPotImage - ground.y:", ground.y, "potEmbedAmount:", potEmbedAmount, "pot.height:", pot.height, "drawY:", drawY);
+  image(potImage, pot.x, drawY, pot.width, pot.height);
+  pop();
+}
+
+function drawSimplePot() {
+  // Same calculation as drawPotImage: pot center at ground.y + potEmbedAmount
+  let drawY = ground.y + potEmbedAmount;
+  let potTopY = drawY - pot.height/2;
   
-  // Draw debug markers
-  if (showDebugInfo) {
-    // Draw ground line
-    stroke(255, 0, 0, 100);
-    strokeWeight(2);
-    line(0, ground.y, width, ground.y);
-    
-    // Draw pot center
-    stroke(0, 255, 0, 150);
-    strokeWeight(5);
-    point(pot.x, pot.y);
-    
-    // Draw pot top
-    stroke(0, 0, 255, 150);
-    strokeWeight(5);
-    let potTopY = pot.y - pot.height/2;
-    point(pot.x, potTopY);
-    
-    // Draw plant base
-    stroke(255, 255, 0, 150);
-    strokeWeight(5);
-    let plantBaseY = potTopY + pot.plantStartY;
-    point(pot.x, plantBaseY);
-    
-    // Draw actual plant start
-    stroke(255, 0, 255, 150);
-    strokeWeight(5);
-    let actualPlantStartY = plantBaseY - plantStartYOffset;
-    point(pot.x, actualPlantStartY);
-  }
+  fill(205, 133, 63);
+  stroke(165, 103, 43);
+  strokeWeight(2);
+  rect(pot.x - pot.width/3, potTopY, pot.width * 0.67, pot.height);
+  
+  fill(185, 113, 53);
+  noStroke();
+  rect(pot.x - pot.width/3, potTopY - 5, pot.width * 0.67, 10, 3);
 }
 
 function draw() {
@@ -381,37 +328,6 @@ function draw() {
   updatePlant();
   drawPlant();
   drawUI();
-  
-  // Draw debug text
-  if (showDebugInfo) {
-    drawDebugInfo();
-  }
-}
-
-function drawDebugInfo() {
-  push();
-  fill(255, 255, 0);
-  noStroke();
-  textSize(12);
-  
-  let yPos = 150;
-  text("DEBUG INFO:", 15, yPos);
-  text("potEmbedAmount: " + potEmbedAmount, 15, yPos + 20);
-  text("potHorizontalPosition: " + potHorizontalPosition, 15, yPos + 35);
-  text("plantStartYOffset: " + plantStartYOffset, 15, yPos + 50);
-  text("Pot Y: " + Math.round(pot.y), 15, yPos + 65);
-  text("Ground Y: " + Math.round(ground.y), 15, yPos + 80);
-  
-  // Key controls help
-  text("CONTROLS:", width - 150, 20);
-  text("1/2: Pot depth", width - 150, 40);
-  text("3/4: Pot horizontal", width - 150, 55);
-  text("5/6: Plant offset", width - 150, 70);
-  text("7: Toggle debug", width - 150, 85);
-  text("R: Reset plant", width - 150, 100);
-  text("SPACE: Grow", width - 150, 115);
-  
-  pop();
 }
 
 function shouldGrow() {
@@ -854,8 +770,23 @@ function keyPressed() {
   }
   
   if (key === 'r' || key === 'R') {
-    resetPlant();
+    plant = [];
+    leaves = [];
+    flowers = [];
+    growthCounter = 0;
+    
+    plantAge = calculateRealPlantAge();
+    lastUpdateTime = new Date();
+    
+    // Reset with position synced to potEmbedAmount (matching setup calculation)
+    let baseX = pot.x;
+    let potCenterY = ground.y + potEmbedAmount;
+    let potTopY = potCenterY - pot.height/2;
+    let baseY = potTopY + pot.plantStartY;
+    plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
+    
     sensorData.soilMoisture = 650;
+    
     console.log("Plant reset!");
   }
   
@@ -863,74 +794,6 @@ function keyPressed() {
     autoGrowth = !autoGrowth;
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
-  
-  if (key === '7') {
-    showDebugInfo = !showDebugInfo;
-    console.log("Debug info:", showDebugInfo ? "ON" : "OFF");
-  }
-  
-  // Position adjustment controls
-  let needsUpdate = false;
-  
-  if (key === '1') {
-    potEmbedAmount = max(0, potEmbedAmount - 10);
-    needsUpdate = true;
-  }
-  
-  if (key === '2') {
-    potEmbedAmount += 10;
-    needsUpdate = true;
-  }
-  
-  if (key === '3') {
-    potHorizontalPosition = max(0, potHorizontalPosition - 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '4') {
-    potHorizontalPosition = min(1, potHorizontalPosition + 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '5') {
-    plantStartYOffset = max(0, plantStartYOffset - 5);
-    console.log("plantStartYOffset:", plantStartYOffset);
-    // Reset plant with new offset
-    let oldPlant = plant;
-    resetPlant();
-    // Try to preserve existing plant structure
-    if (oldPlant.length > 0 && plant.length > 0) {
-      let offsetY = plant[0].startY - oldPlant[0].startY;
-      for (let i = 1; i < Math.min(oldPlant.length, plant.length); i++) {
-        oldPlant[i].baseStartY += offsetY;
-        oldPlant[i].baseEndY += offsetY;
-      }
-      plant = oldPlant;
-    }
-  }
-  
-  if (key === '6') {
-    plantStartYOffset += 5;
-    console.log("plantStartYOffset:", plantStartYOffset);
-    // Reset plant with new offset
-    let oldPlant = plant;
-    resetPlant();
-    // Try to preserve existing plant structure
-    if (oldPlant.length > 0 && plant.length > 0) {
-      let offsetY = plant[0].startY - oldPlant[0].startY;
-      for (let i = 1; i < Math.min(oldPlant.length, plant.length); i++) {
-        oldPlant[i].baseStartY += offsetY;
-        oldPlant[i].baseEndY += offsetY;
-      }
-      plant = oldPlant;
-    }
-  }
-  
-  if (needsUpdate) {
-    console.log("Position updated:");
-    console.log("  potEmbedAmount:", potEmbedAmount);
-    console.log("  potHorizontalPosition:", potHorizontalPosition);
-    calculatePotPosition();
-    windowResized(); // This will update all positions
-  }
 }
+
+

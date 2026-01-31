@@ -127,16 +127,40 @@ function calculateRealPlantAge() {
   const ageInDays = ageInMillis / (1000 * 60 * 60 * 24);
   return ageInDays * 100;
 }
+// === RESPONSIVE POSITIONING ===
+function calculateResponsivePositions() {
+  // Center horizontally
+  POT_ADJUSTMENTS.x = windowWidth / 2;
+  
+  // Ground fills bottom 25% of screen
+  GROUND_ADJUSTMENTS.height = windowHeight * 0.25;
+  GROUND_ADJUSTMENTS.y = windowHeight - GROUND_ADJUSTMENTS.height;
+  
+  // Position pot ON the ground surface (slightly embedded)
+  let potEmbedAmount = 20;
+  POT_ADJUSTMENTS.y = GROUND_ADJUSTMENTS.y + potEmbedAmount;
+  
+  // Apply to pot object
+  pot.x = POT_ADJUSTMENTS.x;
+  pot.y = POT_ADJUSTMENTS.y;
+  pot.plantStartY = POT_ADJUSTMENTS.plantStartY;
+  
+  // Apply to ground object
+  ground.y = GROUND_ADJUSTMENTS.y;
+  ground.height = GROUND_ADJUSTMENTS.height;
+}
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   
-  // Calculate responsive positions
+  // Calculate responsive positions FIRST
   calculateResponsivePositions();
   
   // Initialize plant age
   plantAge = calculateRealPlantAge();
   lastUpdateTime = new Date();
+  
+  // ... rest of your setup code stays the same
   
   // Update pot dimensions if image is loaded
   if (potImage.width > 0) {
@@ -220,7 +244,7 @@ function windowResized() {
   // Recalculate responsive positions
   calculateResponsivePositions();
   
-  // Calculate offset
+  // Calculate offset to move plant with pot
   let newPotX = pot.x;
   let newPotY = pot.y + pot.plantStartY;
   let offsetX = newPotX - oldPotX;

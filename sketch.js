@@ -1,6 +1,6 @@
 // === SERIAL COMMUNICATION ===
-let serialConnected = false;
-let lastDataTime = 0;
+let serial;
+let portName = 'COM6'; // CHANGE THIS to your Arduino port
 
 // Sensor data
 let sensorData = {
@@ -110,14 +110,24 @@ function setup() {
     pot.imageLoaded = true;
   }
   
-  // Expose function to receive serial data from HTML
-  window.handleSerialData = function(data) {
-    processSerialData(data);
-  };
+  // === SERIAL SETUP ===
+  serial = new p5.SerialPort();
+  serial.on("connected", serverConnected);
+  serial.on("open", portOpen);
+  serial.on("data", serialEvent);
+  serial.on("error", serialError);
+  serial.on("close", portClose);
+  
+  console.log("Trying to open serial port:", portName);
+  
+  // Try to open the serial port
+  try {
+    serial.open(portName);
+  } catch (err) {
+    console.log("Could not open port automatically. Make sure p5.serialcontrol app is running.");
+  }
   
   console.log("Fuchsia Plant Simulation Started!");
-  console.log("Canvas size:", windowWidth, "x", windowHeight);
-  console.log("Ready for Web Serial connection. Click 'Connect Arduino' button.");
   console.log("Press SPACEBAR to grow | CLICK to water | R to reset");
   
   // Start plant from adjusted position
@@ -126,57 +136,64 @@ function setup() {
   plant.push(new StemSegment(baseX, baseY, baseX, baseY - 20, 0, -PI/2, 7));
 }
 
-function processSerialData(data) {
-  if (!data) return;
+// === SERIAL FUNCTIONS ===
+function serverConnected() {
+  console.log("Connected to p5.serial server");
+}
+
+function portOpen() {
+  console.log("Serial port is open!");
+}
+
+function serialError(err) {
+  console.log("Serial error: " + err);
+}
+
+function portClose() {
+  console.log("Serial port closed");
+}
+
+function serialEvent() {
+  let currentString = serial.readLine();
+  if (!currentString) return;
   
-  data = data.trim();
-  console.log("Raw data received:", data);
+  currentString = currentString.trim();
+  console.log("Received:", currentString);
   
-  // Try different parsing methods
-  let parts;
+  // Parse sensor data - adjust based on your Arduino format
+  let sensors = currentString.split(' ');
   
-  // Check what separator is used
-  if (data.includes(',')) {
-    parts = data.split(',');
-  } else if (data.includes(';')) {
-    parts = data.split(';');
-  } else {
-    parts = data.split(/\s+/);
-  }
-  
-  console.log("Parsed parts:", parts);
-  
-  if (parts.length >= 1) {
-    // First value is soil moisture
-    let soilVal = parseFloat(parts[0]);
+  if (sensors.length >= 2) {
+    // Parse soil moisture
+    let soilVal = Number(sensors[0]);
     if (!isNaN(soilVal)) {
       sensorData.soilMoisture = soilVal;
     }
     
-    // Second value is oxygen (if exists)
-    if (parts.length >= 2) {
-      let oxygenVal = parseFloat(parts[1]);
-      if (!isNaN(oxygenVal)) {
-        sensorData.oxygen = oxygenVal;
-      }
+    // Parse oxygen
+    let oxygenVal = Number(sensors[1]);
+    if (!isNaN(oxygenVal)) {
+      sensorData.oxygen = oxygenVal;
     }
     
-    // Third value is heart rate (if exists)
-    if (parts.length >= 3) {
-      let heartVal = parseFloat(parts[2]);
+    // Parse heart rate if available
+    if (sensors.length >= 3) {
+      let heartVal = Number(sensors[2]);
       if (!isNaN(heartVal)) {
         sensorData.heartRate = heartVal;
       }
     }
     
-    serialConnected = true;
-    lastDataTime = millis();
-    
-    console.log("Updated sensors - Soil:", sensorData.soilMoisture, 
+    console.log("Updated - Soil:", sensorData.soilMoisture, 
                 "O2:", sensorData.oxygen, 
                 "Heart:", sensorData.heartRate);
   }
 }
+
+// === IMPORTANT: DOWNLOAD AND RUN p5.serialcontrol APP ===
+// Go to: https://github.com/p5-serial/p5.serialcontrol/releases
+// Download p5.serialcontrol app for your OS (Windows/Mac)
+// Run it BEFORE opening your webpage
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
@@ -553,26 +570,6 @@ function drawUI() {
   // Planting date - at the top
   text("Planted: 11 Nov 2025", 15, 25);
   
-  // Serial connection status
-  let serialStatus;
-  let serialColor;
-  
-  if (serialConnected) {
-    if (millis() - lastDataTime < 5000) { // Data received in last 5 seconds
-      serialStatus = "✅ Arduino Connected";
-      serialColor = color(100, 255, 100);
-    } else {
-      serialStatus = "⚠️ No recent data";
-      serialColor = color(255, 200, 50);
-    }
-  } else {
-    serialStatus = "🔌 Click Connect Button";
-    serialColor = color(255, 200, 50);
-  }
-  
-  fill(serialColor);
-  text(serialStatus, 15, 45);
-  
   // Plant status
   let status = "Seed";
   let statusEmoji = "🌱";
@@ -597,20 +594,19 @@ function drawUI() {
     statusEmoji = "🌳";
   }
   
-  fill(255);
-  text(statusEmoji + " " + status, 15, 65);
+  text(statusEmoji + " " + status, 15, 45);
   
   // Age
-  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 85);
+  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 65);
   
   // Plant statistics
-  text("Leaves: " + leaves.length, 15, 105);
-  text("Flowers: " + flowers.length, 15, 125);
+  text("Leaves: " + leaves.length, 15, 85);
+  text("Flowers: " + flowers.length, 15, 105);
   
   // Sensor data - on the right side
   let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
-  text("O₂: " + sensorData.oxygen, rightColumnX, 85);
+  text("Soil: " + sensorData.soilMoisture, rightColumnX, 45);
+  text("O₂: " + sensorData.oxygen, rightColumnX, 65);
   
   // Plant needs indicator
   let needsMessage = "✓ Happy";
@@ -625,21 +621,21 @@ function drawUI() {
   }
   
   fill(needsColor);
-  text(needsMessage, rightColumnX, 45);
+  text(needsMessage, rightColumnX, 25);
   
   // Soil moisture bar
   noStroke();
   fill(100);
-  rect(rightColumnX, 95, 80, 8);
+  rect(rightColumnX, 80, 80, 8);
   fill(50, 200, 50);
   let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
   moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 95, moistureWidth, 8);
+  rect(rightColumnX, 80, moistureWidth, 8);
   
   // Soil moisture label
   fill(255);
   textSize(10);
-  text("Moisture", rightColumnX, 115);
+  text("Moisture", rightColumnX, 100);
 }
 
 class StemSegment {

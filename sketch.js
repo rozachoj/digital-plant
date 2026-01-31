@@ -300,7 +300,7 @@ function drawPotImage() {
   push();
   imageMode(CENTER);
   // Draw pot so its BOTTOM edge is at pot.y
-  let drawY = pot.y - pot.height / 2;
+  let drawY = pot.y + pot.height / 2;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
 }

@@ -41,7 +41,7 @@ let groundImage;
 // This controls how far down from the TOP of the ground the pot sits
 // LOWER number (like 20) = pot is HIGHER (barely in ground)
 // HIGHER number (like 100) = pot is LOWER (deeper in ground)
-let potEmbedAmount = 20;
+let potEmbedAmount = 150;
 // =====================================================
 
 // Pot properties
@@ -179,6 +179,15 @@ function processSerialData(data) {
   }
 }
 
+function calculateResponsivePositions() {
+    let newPotX = pot.x;
+  let newPotCenterY = ground.y + potEmbedAmount;
+  let newPotTopY = newPotCenterY - pot.height/2;
+  let newPlantBaseY = newPotTopY + pot.plantStartY;
+  let offsetX = newPotX - oldPotX;
+  let offsetY = newPlantBaseY - oldPlantBaseY;
+}
+
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
@@ -188,16 +197,7 @@ function windowResized() {
   let oldPotTopY = oldPotCenterY - pot.height/2;
   let oldPlantBaseY = oldPotTopY + pot.plantStartY;
   
-  // Recalculate responsive positions
-  calculateResponsivePositions();
-  
-  // Calculate offset to move plant with pot
-  let newPotX = pot.x;
-  let newPotCenterY = ground.y + potEmbedAmount;
-  let newPotTopY = newPotCenterY - pot.height/2;
-  let newPlantBaseY = newPotTopY + pot.plantStartY;
-  let offsetX = newPotX - oldPotX;
-  let offsetY = newPlantBaseY - oldPlantBaseY;
+ 
   
   // Move all plant segments
   for (let segment of plant) {
@@ -795,7 +795,5 @@ function keyPressed() {
     console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
   }
 }
-
-
 
 

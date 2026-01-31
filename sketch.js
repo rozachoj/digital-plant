@@ -39,7 +39,7 @@ let groundImage;
 // CHANGE THIS NUMBER to move the pot up or down on the ground
 // Higher number = pot sits LOWER (more into the ground)
 // Try values like: 50, 100, 150, 200
-let potEmbedAmount = 200;
+let potEmbedAmount = 0;
 
 // === RESPONSIVE ADJUSTMENT VARIABLES ===
 let POT_ADJUSTMENTS = {

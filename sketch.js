@@ -106,7 +106,7 @@ function calculateRealPlantAge() {
 // === RESPONSIVE POSITIONING ===
 // ADJUSTMENT: Change this value to move pot up/down in the ground
 // Higher number = pot sits lower in ground
-let POT_EMBED_AMOUNT = 60;  // <-- CHANGE THIS NUMBER to adjust pot position
+let POT_EMBED_AMOUNT = 100;  // <-- CHANGE THIS NUMBER to adjust pot position
 
 function calculateResponsivePositions() {
   // Center horizontally

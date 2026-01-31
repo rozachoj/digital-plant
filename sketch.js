@@ -299,11 +299,13 @@ function drawPot() {
 function drawPotImage() {
   push();
   imageMode(CENTER);
-  // Draw pot so its BOTTOM edge is at pot.y
-  let drawY = pot.y + pot.height / 2;
+  // POT_GROUND_OFFSET: Increase this number to move pot DOWN into ground
+  let POT_GROUND_OFFSET = 100;  // <-- CHANGE THIS NUMBER
+  let drawY = ground.y + POT_GROUND_OFFSET;
   image(potImage, pot.x, drawY, pot.width, pot.height);
   pop();
 }
+
 function drawSimplePot() {
   let potTopY = pot.y - pot.height;
   

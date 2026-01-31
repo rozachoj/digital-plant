@@ -13,79 +13,92 @@
         canvas {
             display: block;
         }
-        #status {
+        #connect-btn {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.8);
+            background: #4CAF50;
             color: white;
-            padding: 10px;
+            border: none;
+            padding: 10px 20px;
             border-radius: 5px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
+            cursor: pointer;
+            font-size: 14px;
             z-index: 1000;
+        }
+        #connect-btn:hover {
+            background: #45a049;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
     <script src="sketch.js"></script>
 </head>
 <body>
-    <div id="status">Ready to connect</div>
+    <button id="connect-btn" onclick="connectSerial()">🔌 Connect Arduino (COM6)</button>
     
     <script>
-        // Web Serial API
-        let serialPort;
+        let port = null;
+        let reader = null;
         
         async function connectSerial() {
             try {
-                // Request serial port
-                serialPort = await navigator.serial.requestPort();
+                console.log("Requesting serial port...");
                 
-                // Open with 9600 baud (Arduino default)
-                await serialPort.open({ baudRate: 9600 });
+                // Filter for COM6 specifically
+                const filters = [
+                    { usbVendorId: 0x2341, usbProductId: 0x0043 }, // Arduino Uno
+                    { usbVendorId: 0x2341, usbProductId: 0x0001 }, // Arduino Leonardo
+                    { usbVendorId: 0x2341, usbProductId: 0x8036 }  // Arduino Micro
+                ];
                 
-                document.getElementById('status').innerHTML = 
-                    '✅ Connected! Reading data...';
+                // Request port
+                port = await navigator.serial.requestPort({ filters });
+                console.log("Port selected:", port);
+                
+                // Open port
+                await port.open({ baudRate: 9600 });
+                console.log("Port opened at 9600 baud");
+                
+                // Update button
+                document.getElementById('connect-btn').innerHTML = '✅ Connected to COM6';
+                document.getElementById('connect-btn').style.background = '#2E7D32';
                 
                 // Start reading
-                readSerial();
+                readFromSerial();
                 
-            } catch (err) {
-                console.log('User cancelled or error:', err);
-                document.getElementById('status').innerHTML = 
-                    '❌ Connection failed. Click page to try again.';
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('connect-btn').innerHTML = '❌ Failed: ' + error.message;
+                document.getElementById('connect-btn').style.background = '#d32f2f';
             }
         }
         
-        async function readSerial() {
-            const textDecoder = new TextDecoder();
+        async function readFromSerial() {
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            const reader = textDecoder.readable.getReader();
             
-            while (serialPort.readable) {
-                const reader = serialPort.readable.getReader();
-                
-                try {
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        
-                        const text = textDecoder.decode(value);
-                        // Send to p5.js
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        console.log("Reader done");
+                        break;
+                    }
+                    
+                    if (value) {
+                        // Send data to p5.js
                         if (window.handleSerialData) {
-                            window.handleSerialData(text);
+                            window.handleSerialData(value);
                         }
                     }
-                } finally {
-                    reader.releaseLock();
                 }
+            } catch (error) {
+                console.error('Read error:', error);
+            } finally {
+                reader.releaseLock();
             }
         }
-        
-        // Click anywhere to connect
-        document.body.addEventListener('click', function() {
-            if (!serialPort) {
-                connectSerial();
-            }
-        });
     </script>
 </body>
 </html>

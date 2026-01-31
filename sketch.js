@@ -114,7 +114,7 @@ function calculateResponsivePositions() {
   
     // Position pot in the middle of the ground (realistic placement)
   let groundCenter = GROUND_ADJUSTMENTS.y + GROUND_ADJUSTMENTS.height / 2;
-  POT_ADJUSTMENTS.y = groundCenter + 100;
+  POT_ADJUSTMENTS.y = groundCenter + 1000;
   
   // Apply to pot object
   pot.x = POT_ADJUSTMENTS.x;

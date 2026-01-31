@@ -17,86 +17,100 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            background: #4CAF50;
+            background: rgba(0,100,0,0.8);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 10px 15px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 14px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
             z-index: 1000;
         }
         #connect-btn:hover {
-            background: #45a049;
+            background: rgba(0,150,0,0.8);
+        }
+        #status {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px;
+            border-radius: 3px;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            z-index: 1000;
+            display: none;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
     <script src="sketch.js"></script>
 </head>
 <body>
-    <button id="connect-btn" onclick="connectSerial()">🔌 Connect Arduino (COM6)</button>
+    <!-- Canvas will be created here by p5.js -->
+    <button id="connect-btn" onclick="connectSerial()">🔌 Connect Arduino</button>
+    <div id="status">Not connected</div>
     
     <script>
-        let port = null;
-        let reader = null;
+        // Web Serial API connection
+        let serialPort;
         
         async function connectSerial() {
             try {
-                console.log("Requesting serial port...");
+                // Request serial port access
+                serialPort = await navigator.serial.requestPort();
                 
-                // Filter for COM6 specifically
-                const filters = [
-                    { usbVendorId: 0x2341, usbProductId: 0x0043 }, // Arduino Uno
-                    { usbVendorId: 0x2341, usbProductId: 0x0001 }, // Arduino Leonardo
-                    { usbVendorId: 0x2341, usbProductId: 0x8036 }  // Arduino Micro
-                ];
+                // Open the port with 9600 baud rate (standard for Arduino)
+                await serialPort.open({ baudRate: 9600 });
                 
-                // Request port
-                port = await navigator.serial.requestPort({ filters });
-                console.log("Port selected:", port);
+                document.getElementById('status').textContent = '✅ Connected to Arduino';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(0,150,0,0.8)';
+                document.getElementById('connect-btn').textContent = '✅ Connected';
+                document.getElementById('connect-btn').style.background = 'rgba(0,150,0,0.8)';
                 
-                // Open port
-                await port.open({ baudRate: 9600 });
-                console.log("Port opened at 9600 baud");
+                console.log("Serial port opened successfully!");
                 
-                // Update button
-                document.getElementById('connect-btn').innerHTML = '✅ Connected to COM6';
-                document.getElementById('connect-btn').style.background = '#2E7D32';
+                // Start reading data
+                readSerialData();
                 
-                // Start reading
-                readFromSerial();
-                
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('connect-btn').innerHTML = '❌ Failed: ' + error.message;
-                document.getElementById('connect-btn').style.background = '#d32f2f';
+            } catch (err) {
+                console.error('Serial connection error:', err);
+                document.getElementById('status').textContent = '❌ Connection failed';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('status').style.background = 'rgba(255,50,50,0.8)';
             }
         }
         
-        async function readFromSerial() {
-            const textDecoder = new TextDecoderStream();
-            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-            const reader = textDecoder.readable.getReader();
+        async function readSerialData() {
+            const textDecoder = new TextDecoder();
             
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) {
-                        console.log("Reader done");
-                        break;
-                    }
-                    
-                    if (value) {
-                        // Send data to p5.js
+            while (serialPort.readable) {
+                const reader = serialPort.readable.getReader();
+                
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            console.log("Serial reading done");
+                            break;
+                        }
+                        
+                        // Convert received data to string
+                        const text = textDecoder.decode(value);
+                        
+                        // Send to p5.js sketch (global function)
                         if (window.handleSerialData) {
-                            window.handleSerialData(value);
+                            window.handleSerialData(text);
                         }
                     }
+                } catch (err) {
+                    console.error('Error reading serial:', err);
+                    document.getElementById('status').textContent = '❌ Read error';
+                } finally {
+                    reader.releaseLock();
                 }
-            } catch (error) {
-                console.error('Read error:', error);
-            } finally {
-                reader.releaseLock();
             }
         }
     </script>

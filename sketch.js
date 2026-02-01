@@ -148,7 +148,7 @@ function setup() {
   // Calculate initial positions
   calculatePotPosition();
   
-  // Initialize plant age to current real age
+  // Initialize plant age
   plantAge = calculateRealPlantAge();
   lastUpdateTime = new Date();
   
@@ -159,7 +159,6 @@ function setup() {
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
-  console.log("Plant age:", plantAge/100, "days");
   
   // Initialize plant
   resetPlant();
@@ -401,9 +400,10 @@ function draw() {
   if (autoGrowth) {
     growthCounter++;
     
-    // SLOWER GROWTH: Only try to grow every 60 frames (1 second at 60fps)
-    // AND make it depend heavily on sensor data
-    if (growthCounter > 60 && plant.length < 150) {
+    // SLOWER GROWTH: Check growth only every 120 frames (2 seconds at 60fps)
+    let growthSpeed = getGrowthSpeed();
+    
+    if (growthCounter > growthSpeed && plant.length < 150) {
       if (shouldGrow()) {
         growPlant();
       }
@@ -450,6 +450,10 @@ function drawDebugInfo() {
   pop();
 }
 
+// =====================================================
+// MODIFIED GROWTH FUNCTIONS FOR REALISM
+// =====================================================
+
 function shouldGrow() {
   // PRIMARY: Soil moisture affects growth chance the most
   let moistureFactor = map(sensorData.soilMoisture, 200, 800, 0, 1);
@@ -465,19 +469,21 @@ function shouldGrow() {
   oxygenFactor = constrain(oxygenFactor, 0, 1);
   
   // TERTIARY: Plant age - older plants grow slower
-  let ageFactor = 1 - (plantAge / (365 * 100)); // 1 year max age
-  ageFactor = constrain(ageFactor, 0.2, 1);
+  let ageInDays = plantAge / 100;
+  let ageFactor = 1;
+  if (ageInDays > 100) ageFactor = 0.5; // Half speed after 100 days
+  if (ageInDays > 200) ageFactor = 0.3; // Even slower after 200 days
   
   // COMBINE factors for realistic growth
-  let growthChance = moistureFactor * 0.2; // Start with moisture factor
+  let growthChance = moistureFactor * 0.15; // Start with moisture factor
   growthChance *= oxygenFactor * 0.8 + 0.2; // Oxygen affects growth rate
   growthChance *= ageFactor; // Older plants grow slower
   
   // Very slow growth overall for realism
-  growthChance *= 0.1;
+  growthChance *= 0.05;
   
   // Cap at reasonable value
-  growthChance = constrain(growthChance, 0, 0.05);
+  growthChance = constrain(growthChance, 0, 0.03);
   
   console.log("Growth check - Moisture:", moistureFactor.toFixed(2), 
               "Oxygen:", oxygenFactor.toFixed(2), 
@@ -488,8 +494,13 @@ function shouldGrow() {
 }
 
 function getGrowthSpeed() {
-  // Fixed slower growth speed
-  return 60; // Only check growth every 60 frames
+  // Much slower growth speed for realism
+  let ageInDays = plantAge / 100;
+  
+  if (ageInDays < 30) return 120; // Young plants: every 2 seconds
+  if (ageInDays < 60) return 180; // Medium plants: every 3 seconds
+  if (ageInDays < 100) return 240; // Mature plants: every 4 seconds
+  return 300; // Old plants: every 5 seconds
 }
 
 function growPlant() {
@@ -502,21 +513,19 @@ function growPlant() {
   let segment = random(growingSegments);
   let growthType = random();
   
-  // Make growth patterns more realistic:
-  // - Young plants grow more stems
-  // - Mature plants focus on leaves and flowers
-  let ageDays = plantAge / 100;
+  // Make growth patterns more realistic based on age
+  let ageInDays = plantAge / 100;
   
-  if (ageDays < 30) {
+  if (ageInDays < 30) {
     // Young plant: mostly stem growth
     if (growthType < 0.9) extendStem(segment);
     else createLeaf(segment);
-  } else if (ageDays < 60) {
+  } else if (ageInDays < 60) {
     // Adolescent: balanced growth
     if (growthType < 0.5) extendStem(segment);
     else if (growthType < 0.7) createBranch(segment);
     else createLeaf(segment);
-  } else if (ageDays < 90) {
+  } else if (ageInDays < 90) {
     // Maturing: more leaves, some flowers
     if (growthType < 0.3) extendStem(segment);
     else if (growthType < 0.5) createBranch(segment);
@@ -532,8 +541,8 @@ function growPlant() {
 }
 
 function extendStem(segment) {
-  let angle = segment.angle + random(-0.4, 0.4);
-  let length = random(20, 35) * (1 - segment.generation * 0.08); // Shorter for realism
+  let angle = segment.angle + random(-0.3, 0.3); // Less variation for realism
+  let length = random(15, 30) * (1 - segment.generation * 0.08); // Shorter for realism
   let newX = segment.endX + cos(angle) * length;
   let newY = segment.endY + sin(angle) * length;
   let newThickness = segment.thickness * 0.96;
@@ -543,8 +552,8 @@ function extendStem(segment) {
 }
 
 function createBranch(segment) {
-  let branchAngle = segment.angle + random(-PI/2.2, PI/2.2);
-  let branchLength = random(15, 25) * (1 - segment.generation * 0.12); // Shorter branches
+  let branchAngle = segment.angle + random(-PI/2.5, PI/2.5); // Less extreme angles
+  let branchLength = random(12, 25) * (1 - segment.generation * 0.12); // Shorter branches
   let newX = segment.endX + cos(branchAngle) * branchLength;
   let newY = segment.endY + sin(branchAngle) * branchLength;
   let branchThickness = segment.thickness * 0.75;
@@ -559,11 +568,11 @@ function createLeaf(segment) {
     x: segment.endX,
     y: segment.endY,
     size: random(0.8, 1.2),
-    angle: segment.angle + random(-PI/3, PI/3),
+    angle: segment.angle + random(-PI/4, PI/4), // Less angle variation
     age: 0,
-    maxAge: random(800, 1200),
+    maxAge: random(1000, 1500), // Leaves last longer
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.5, 1.5),
+    swayAmount: random(0.3, 1.0), // Less sway for realism
     colorVariation: random(0.8, 1.2),
     isAttached: true
   };
@@ -580,12 +589,12 @@ function createFlower(segment) {
   let flower = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.7, 1.3),
-    angle: segment.angle + random(-PI/4, PI/4),
+    size: random(0.7, 1.2),
+    angle: segment.angle + random(-PI/6, PI/6), // Less angle variation
     age: 0,
-    maxAge: random(600, 900),
+    maxAge: random(800, 1200), // Flowers last longer
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.3, 0.8),
+    swayAmount: random(0.2, 0.6), // Less sway
     colorVariation: random(0.9, 1.1),
     bloomProgress: 0,
     isBlooming: false
@@ -601,12 +610,12 @@ function updatePlant() {
   for (let i = leaves.length - 1; i >= 0; i--) {
     let leaf = leaves[i];
     leaf.age++;
-    leaf.swayOffset = sin(time * 2 + leaf.swayPhase) * leaf.swayAmount;
+    leaf.swayOffset = sin(time * 1.5 + leaf.swayPhase) * leaf.swayAmount; // Slower sway
     
     if (leaf.age > leaf.maxAge) {
       leaf.isAttached = false;
-      leaf.y += 0.5;
-      leaf.angle += 0.01;
+      leaf.y += 0.3; // Slower fall
+      leaf.angle += 0.005; // Slower rotation
       
       if (leaf.y > height + 50) {
         leaves.splice(i, 1);
@@ -617,10 +626,10 @@ function updatePlant() {
   for (let i = flowers.length - 1; i >= 0; i--) {
     let flower = flowers[i];
     flower.age++;
-    flower.swayOffset = sin(time * 1.5 + flower.swayPhase) * flower.swayAmount;
+    flower.swayOffset = sin(time * 1.0 + flower.swayPhase) * flower.swayAmount; // Even slower sway
     
-    if (flower.age < 30) {
-      flower.bloomProgress = flower.age / 30;
+    if (flower.age < 50) { // Slower blooming
+      flower.bloomProgress = flower.age / 50;
     } else {
       flower.bloomProgress = 1;
       flower.isBlooming = true;
@@ -631,6 +640,10 @@ function updatePlant() {
     }
   }
 }
+
+// =====================================================
+// REST OF THE CODE REMAINS THE SAME
+// =====================================================
 
 function drawPlant() {
   for (let segment of plant) {
@@ -990,12 +1003,20 @@ function keyPressed() {
   if (key === '8') {
     plantStartHeight = max(5, plantStartHeight - 5);
     console.log("plantStartHeight decreased to:", plantStartHeight);
+    // Only affects new plants, not existing ones
   }
   
   if (key === '9') {
     plantStartHeight += 5;
     console.log("plantStartHeight increased to:", plantStartHeight);
+    // Only affects new plants, not existing ones
   }
   
   if (needsUpdate) {
-   
+    console.log("Position updated:");
+    console.log("  potEmbedAmount:", potEmbedAmount);
+    console.log("  potHorizontalPosition:", potHorizontalPosition);
+    calculatePotPosition();
+    windowResized(); // This will update all positions
+  }
+}

@@ -69,6 +69,11 @@ let ground = {
 // Debug flag
 let showDebugInfo = true;
 
+// Age settings - START AT 82.5 DAYS
+const STARTING_AGE_DAYS = 82.5; // Current real age of your plant
+const MATURE_AGE_DAYS = 120; // Age when plant is considered mature
+const MAX_AGE_DAYS = 365; // Maximum age for a fuchsia plant
+
 function preload() {
   branchImage = loadImage('fuchsia_branch.png');
   leafImage = loadImage('fuchsia_leaf.png');
@@ -98,7 +103,7 @@ function calculateRealPlantAge() {
   const now = new Date();
   const ageInMillis = now - PLANTING_DATE;
   const ageInDays = ageInMillis / (1000 * 60 * 60 * 24);
-  return ageInDays * 100;
+  return ageInDays * 100; // Returns age in simulation units (days * 100)
 }
 
 function calculatePotPosition() {
@@ -148,8 +153,8 @@ function setup() {
   // Calculate initial positions
   calculatePotPosition();
   
-  // Initialize plant age
-  plantAge = calculateRealPlantAge();
+  // Initialize plant age to STARTING_AGE_DAYS (82.5 days)
+  plantAge = STARTING_AGE_DAYS * 100; // Convert to simulation units
   lastUpdateTime = new Date();
   
   // Expose function to receive serial data from HTML
@@ -159,34 +164,83 @@ function setup() {
   
   console.log("Fuchsia Plant Simulation Started!");
   console.log("Canvas size:", windowWidth, "x", windowHeight);
+  console.log("Plant starting age:", STARTING_AGE_DAYS, "days");
   
-  // Initialize plant
-  resetPlant();
+  // Initialize plant based on age
+  initializePlantForAge();
 }
 
-function resetPlant() {
+function initializePlantForAge() {
   plant = [];
   leaves = [];
   flowers = [];
   growthCounter = 0;
   
-  plantAge = calculateRealPlantAge();
-  lastUpdateTime = new Date();
-  
   // Calculate plant starting position
   let pos = calculatePlantBasePosition();
   
   if (showDebugInfo) {
-    console.log("Plant starting position:");
-    console.log("  Base X:", pos.baseX);
-    console.log("  Base Y:", pos.baseY);
-    console.log("  Pot top Y:", pos.potTopY);
-    console.log("  Plant base Y:", pos.plantBaseY);
-    console.log("  plantStartYOffset:", plantStartYOffset);
+    console.log("Initializing plant for age:", STARTING_AGE_DAYS, "days");
+    console.log("  Plant starting position:");
+    console.log("    Base X:", pos.baseX);
+    console.log("    Base Y:", pos.baseY);
   }
   
   // Create initial stem segment
-  plant.push(new StemSegment(pos.baseX, pos.baseY, pos.baseX, pos.baseY - plantStartHeight, 0, -PI/2, 7));
+  let ageFactor = plantAge / (MATURE_AGE_DAYS * 100);
+  ageFactor = constrain(ageFactor, 0.2, 1.0);
+  
+  // Initial stem based on age - older plants start taller
+  let initialStemLength = plantStartHeight * (1 + ageFactor * 3);
+  plant.push(new StemSegment(pos.baseX, pos.baseY, pos.baseX, pos.baseY - initialStemLength, 0, -PI/2, 7));
+  
+  // Add more segments based on age
+  let segmentsToAdd = floor(ageFactor * 30); // Up to 30 segments for mature plant
+  
+  for (let i = 0; i < segmentsToAdd; i++) {
+    if (plant.length < 30) {
+      let segment = plant[plant.length - 1];
+      let growthType = random();
+      
+      if (plant.length < 10) {
+        if (growthType < 0.8) extendStem(segment);
+        else if (plant.length > 3) createLeaf(segment);
+      } else if (plant.length < 20) {
+        if (growthType < 0.4) extendStem(segment);
+        else if (growthType < 0.7) createBranch(segment);
+        else createLeaf(segment);
+      } else {
+        if (growthType < 0.2) extendStem(segment);
+        else if (growthType < 0.4) createBranch(segment);
+        else if (growthType < 0.9) createLeaf(segment);
+        else if (ageFactor > 0.5) createFlower(segment);
+      }
+    }
+  }
+  
+  // Add initial leaves based on age
+  let leavesToAdd = floor(ageFactor * 25); // Up to 25 leaves for mature plant
+  
+  for (let i = 0; i < leavesToAdd; i++) {
+    if (plant.length > 0) {
+      let randomSegment = plant[floor(random(plant.length))];
+      createLeaf(randomSegment);
+    }
+  }
+  
+  // Add flowers if plant is old enough (fuchsias typically flower after 60-90 days)
+  if (STARTING_AGE_DAYS > 60) {
+    let flowersToAdd = floor((STARTING_AGE_DAYS - 60) / 10); // More flowers as plant ages
+    
+    for (let i = 0; i < flowersToAdd; i++) {
+      if (plant.length > 5) {
+        let randomSegment = plant[floor(random(5, plant.length))];
+        createFlower(randomSegment);
+      }
+    }
+  }
+  
+  console.log("Plant initialized with:", plant.length, "segments,", leaves.length, "leaves,", flowers.length, "flowers");
 }
 
 function adjustPlantPosition(offsetY) {
@@ -389,18 +443,27 @@ function draw() {
   
   time += 0.02;
   
+  // Update plant age in real-time
   const now = new Date();
   if (lastUpdateTime) {
     const timePassed = now - lastUpdateTime;
     const daysPassed = timePassed / (1000 * 60 * 60 * 24);
-    plantAge += daysPassed * 100;
+    plantAge += daysPassed * 100; // Add time in simulation units
+    
+    // Cap maximum age
+    if (plantAge > MAX_AGE_DAYS * 100) {
+      plantAge = MAX_AGE_DAYS * 100;
+    }
   }
   lastUpdateTime = now;
   
   if (autoGrowth) {
     growthCounter++;
+    
+    // Get growth speed based on age - older plants grow slower
     let growthSpeed = getGrowthSpeed();
-    if (growthCounter > growthSpeed && plant.length < 150) {
+    
+    if (growthCounter > growthSpeed && plant.length < getMaxSegmentsForAge()) {
       if (shouldGrow()) {
         growPlant();
       }
@@ -432,6 +495,8 @@ function drawDebugInfo() {
   text("plantStartHeight: " + plantStartHeight, 15, yPos + 65);
   text("Pot Y: " + Math.round(pot.y), 15, yPos + 80);
   text("Ground Y: " + Math.round(ground.y), 15, yPos + 95);
+  text("Plant Age: " + (plantAge/100).toFixed(1) + " days", 15, yPos + 110);
+  text("Age Factor: " + getAgeFactor().toFixed(2), 15, yPos + 125);
   
   // Key controls help
   text("CONTROLS:", width - 150, 20);
@@ -446,6 +511,18 @@ function drawDebugInfo() {
   pop();
 }
 
+function getAgeFactor() {
+  // Returns 0-1 based on plant age relative to mature age
+  return constrain(plantAge / (MATURE_AGE_DAYS * 100), 0, 1);
+}
+
+function getMaxSegmentsForAge() {
+  // Maximum segments based on age
+  let ageFactor = getAgeFactor();
+  let maxSegments = 30 + ageFactor * 70; // 30-100 segments based on age
+  return floor(maxSegments);
+}
+
 function shouldGrow() {
   let moistureFactor = map(sensorData.soilMoisture, 200, 800, 0, 1);
   moistureFactor = constrain(moistureFactor, 0, 1);
@@ -454,22 +531,44 @@ function shouldGrow() {
     return false;
   }
   
+  let ageFactor = getAgeFactor();
   let growthChance = moistureFactor * 0.35;
-  if (plantAge < 300) growthChance *= 0.6;
-  growthChance += leaves.length * 0.002;
+  
+  // Younger plants grow faster, mature plants grow slower
+  if (ageFactor < 0.3) {
+    growthChance *= 1.2; // Young plant boost
+  } else if (ageFactor > 0.7) {
+    growthChance *= 0.5; // Mature plant slowdown
+  } else if (ageFactor > 0.9) {
+    growthChance *= 0.3; // Old plant very slow
+  }
+  
+  // More leaves means plant can grow more (photosynthesis)
+  growthChance += leaves.length * 0.001;
+  
+  // Cap growth chance
+  growthChance = constrain(growthChance, 0, 0.5);
   
   return random() < growthChance;
 }
 
 function getGrowthSpeed() {
-  if (plantAge < 200) return 35;
-  if (plant.length < 10) return 30;
-  if (plant.length < 30) return 25;
-  if (plant.length < 50) return 20;
-  return 18;
+  let ageFactor = getAgeFactor();
+  
+  // Growth gets slower as plant gets older
+  if (ageFactor < 0.2) return 20; // Very young: fast
+  if (ageFactor < 0.4) return 25; // Young: medium-fast
+  if (ageFactor < 0.6) return 30; // Adolescent: medium
+  if (ageFactor < 0.8) return 40; // Adult: slow
+  return 60; // Mature: very slow
 }
 
 function growPlant() {
+  // Only grow if plant hasn't reached maximum size for its age
+  if (plant.length >= getMaxSegmentsForAge()) {
+    return;
+  }
+  
   let growingSegments = plant.filter(segment => 
     segment.canGrow && random() < segment.growthProbability
   );
@@ -478,25 +577,37 @@ function growPlant() {
   
   let segment = random(growingSegments);
   let growthType = random();
+  let ageFactor = getAgeFactor();
   
-  if (plant.length < 6) {
-    if (growthType < 0.85) extendStem(segment);
+  // Growth patterns change with age
+  if (ageFactor < 0.3) {
+    // Young plant: mostly stem growth
+    if (growthType < 0.8) extendStem(segment);
     else createLeaf(segment);
-  } else if (plant.length < 20) {
-    if (growthType < 0.35) extendStem(segment);
-    else if (growthType < 0.65) createBranch(segment);
+  } else if (ageFactor < 0.6) {
+    // Adolescent: balanced growth
+    if (growthType < 0.4) extendStem(segment);
+    else if (growthType < 0.7) createBranch(segment);
     else createLeaf(segment);
   } else {
-    if (growthType < 0.15) extendStem(segment);
-    else if (growthType < 0.25) createBranch(segment);
-    else if (growthType < 0.9) createLeaf(segment);
-    else createFlower(segment);
+    // Mature plant: mostly leaves and flowers
+    if (growthType < 0.1) extendStem(segment);
+    else if (growthType < 0.2) createBranch(segment);
+    else if (growthType < 0.85) createLeaf(segment);
+    else if (ageFactor > 0.5 && random() < 0.7) createFlower(segment);
+    else createLeaf(segment);
   }
 }
 
 function extendStem(segment) {
   let angle = segment.angle + random(-0.4, 0.4);
-  let length = random(25, 45) * (1 - segment.generation * 0.08);
+  let baseLength = random(20, 40);
+  
+  // Older plants have shorter new growth
+  let ageFactor = getAgeFactor();
+  let length = baseLength * (1 - ageFactor * 0.5);
+  
+  length = length * (1 - segment.generation * 0.08);
   let newX = segment.endX + cos(angle) * length;
   let newY = segment.endY + sin(angle) * length;
   let newThickness = segment.thickness * 0.96;
@@ -507,7 +618,13 @@ function extendStem(segment) {
 
 function createBranch(segment) {
   let branchAngle = segment.angle + random(-PI/2.2, PI/2.2);
-  let branchLength = random(18, 35) * (1 - segment.generation * 0.12);
+  let baseLength = random(15, 30);
+  
+  // Older plants have shorter branches
+  let ageFactor = getAgeFactor();
+  let branchLength = baseLength * (1 - ageFactor * 0.3);
+  
+  branchLength = branchLength * (1 - segment.generation * 0.12);
   let newX = segment.endX + cos(branchAngle) * branchLength;
   let newY = segment.endY + sin(branchAngle) * branchLength;
   let branchThickness = segment.thickness * 0.75;
@@ -534,6 +651,12 @@ function createLeaf(segment) {
 }
 
 function createFlower(segment) {
+  // Only create flowers if plant is old enough (fuchsias flower after ~60 days)
+  if (plantAge < 60 * 100) {
+    createLeaf(segment);
+    return;
+  }
+  
   let flower = {
     x: segment.endX,
     y: segment.endY,
@@ -560,7 +683,11 @@ function updatePlant() {
     leaf.age++;
     leaf.swayOffset = sin(time * 2 + leaf.swayPhase) * leaf.swayAmount;
     
-    if (leaf.age > leaf.maxAge) {
+    // Older leaves drop faster
+    let ageFactor = getAgeFactor();
+    let ageRate = 1 + ageFactor * 0.5; // Mature plants drop leaves 50% faster
+    
+    if (leaf.age > leaf.maxAge * ageRate) {
       leaf.isAttached = false;
       leaf.y += 0.5;
       leaf.angle += 0.01;
@@ -583,7 +710,11 @@ function updatePlant() {
       flower.isBlooming = true;
     }
     
-    if (flower.age > flower.maxAge) {
+    // Flowers on older plants last longer
+    let ageFactor = getAgeFactor();
+    let maxAgeMultiplier = 1 + ageFactor * 0.3; // Flowers last 30% longer on mature plants
+    
+    if (flower.age > flower.maxAge * maxAgeMultiplier) {
       flowers.splice(i, 1);
     }
   }
@@ -731,15 +862,20 @@ function drawUI() {
   text(serialStatus, 15, 45);
   
   let status = "Seed";
-  if (plant.length > 3) status = "Sprout";
-  if (plant.length > 10) status = "Sapling";
-  if (leaves.length > 8) status = "Growing";
-  if (flowers.length > 0) status = "Flowering";
-  if (plant.length > 60) status = "Mature";
+  let ageInDays = plantAge / 100;
+  
+  if (ageInDays < 30) status = "Seedling";
+  else if (ageInDays < 60) status = "Sprout";
+  else if (ageInDays < 90) status = "Sapling";
+  else if (ageInDays < 120) status = "Growing";
+  else if (ageInDays < 180) status = "Mature";
+  else status = "Established";
+  
+  if (flowers.length > 0) status = "Flowering " + status;
   
   fill(255);
   text("Status: " + status, 15, 65);
-  text("Age: " + nf(plantAge/100, 1, 1) + " days", 15, 85);
+  text("Age: " + nf(ageInDays, 1, 1) + " days", 15, 85);
   text("Leaves: " + leaves.length, 15, 105);
   text("Flowers: " + flowers.length, 15, 125);
   
@@ -830,137 +966,4 @@ class StemSegment {
     
     if (segmentLength < 0.1) return;
     
-    let segmentAngle = atan2(dy, dx);
-    
-    if (branchImage && branchImage.width > 0) {
-      push();
-      translate(this.startX, this.startY);
-      rotate(segmentAngle);
-      
-      let tintColor = this.color;
-      tint(red(tintColor), green(tintColor), blue(tintColor), 220);
-      
-      imageMode(CORNER);
-      
-      let drawWidth = segmentLength;
-      let drawHeight = this.thickness * 5.5;
-      
-      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.2;
-      drawHeight *= heightVariation;
-      
-      image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);
-      
-      pop();
-    } else {
-      stroke(this.color);
-      strokeWeight(this.thickness);
-      line(this.startX, this.startY, this.endX, this.endY);
-      
-      strokeWeight(max(1, this.thickness * 0.3));
-      stroke(red(this.color) - 20, green(this.color) - 10, blue(this.color) - 10, 150);
-      let steps = 4;
-      for (let i = 0; i <= steps; i++) {
-        let t = i / steps;
-        let x = lerp(this.startX, this.endX, t);
-        let y = lerp(this.startY, this.endY, t);
-        let offset = sin(t * PI + time) * this.thickness * 0.3;
-        line(x + offset, y, x - offset, y);
-      }
-    }
-  }
-}
-
-function mousePressed() {
-  let distance = dist(mouseX, mouseY, pot.x, pot.y - pot.height/2);
-  
-  if (distance < pot.width/2) {
-    sensorData.soilMoisture = min(800, sensorData.soilMoisture + 100);
-    console.log("Watered! Soil:", sensorData.soilMoisture);
-  }
-}
-
-function keyPressed() {
-  if (key === ' ') {
-    growPlant();
-    console.log("Manual growth.");
-  }
-  
-  if (key === 'r' || key === 'R') {
-    resetPlant();
-    sensorData.soilMoisture = 650;
-    console.log("Plant reset!");
-  }
-  
-  if (key === 'a' || key === 'A') {
-    autoGrowth = !autoGrowth;
-    console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
-  }
-  
-  if (key === '7') {
-    showDebugInfo = !showDebugInfo;
-    console.log("Debug info:", showDebugInfo ? "ON" : "OFF");
-  }
-  
-  // Position adjustment controls
-  let needsUpdate = false;
-  
-  if (key === '1') {
-    potEmbedAmount = max(0, potEmbedAmount - 10);
-    needsUpdate = true;
-  }
-  
-  if (key === '2') {
-    potEmbedAmount += 10;
-    needsUpdate = true;
-  }
-  
-  if (key === '3') {
-    potHorizontalPosition = max(0, potHorizontalPosition - 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '4') {
-    potHorizontalPosition = min(1, potHorizontalPosition + 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '5') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset = max(0, plantStartYOffset - 5);
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset decreased to:", plantStartYOffset);
-  }
-  
-  if (key === '6') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset += 5;
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset increased to:", plantStartYOffset);
-  }
-  
-  if (key === '8') {
-    plantStartHeight = max(5, plantStartHeight - 5);
-    console.log("plantStartHeight decreased to:", plantStartHeight);
-    // Only affects new plants, not existing ones
-  }
-  
-  if (key === '9') {
-    plantStartHeight += 5;
-    console.log("plantStartHeight increased to:", plantStartHeight);
-    // Only affects new plants, not existing ones
-  }
-  
-  if (needsUpdate) {
-    console.log("Position updated:");
-    console.log("  potEmbedAmount:", potEmbedAmount);
-    console.log("  potHorizontalPosition:", potHorizontalPosition);
-    calculatePotPosition();
-    windowResized(); // This will update all positions
-  }
-}
+    let segmentAngle = atan2(dy

@@ -966,4 +966,8 @@ class StemSegment {
     
     if (segmentLength < 0.1) return;
     
-    let segmentAngle = atan2(dy
+    let segmentAngle = atan2(dy, dx);
+    
+    if (branchImage && branchImage.width > 0) {
+      push();
+     

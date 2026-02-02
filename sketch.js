@@ -44,7 +44,7 @@ let potEmbedAmount = 150; // How much pot is embedded in ground (0-300)
 let potHorizontalPosition = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
 
 // Plant starting position (relative to pot)
-let plantStartYOffset = 30; // Distance from top of pot where plant starts
+let plantStartYOffset = 30; // Distance from top of pot where plant starts (can be positive OR negative)
 let plantStartHeight = 20; // Initial stem height
 
 // =====================================================
@@ -137,7 +137,7 @@ function calculatePotPosition() {
 function calculatePlantBasePosition() {
   let potTopY = pot.y - pot.height/2; // Top edge of pot
   let plantBaseY = potTopY + pot.plantStartY; // Where plant emerges from pot
-  let actualPlantStartY = plantBaseY - plantStartYOffset;
+  let actualPlantStartY = plantBaseY - plantStartYOffset; // Adjusted by offset
   
   return {
     baseX: pot.x,
@@ -281,6 +281,32 @@ function adjustPlantPosition(offsetY) {
   }
 }
 
+function adjustAllPlantPositions(offsetX, offsetY) {
+  // Move all plant segments
+  for (let segment of plant) {
+    segment.baseStartX += offsetX;
+    segment.baseStartY += offsetY;
+    segment.baseEndX += offsetX;
+    segment.baseEndY += offsetY;
+    segment.startX += offsetX;
+    segment.startY += offsetY;
+    segment.endX += offsetX;
+    segment.endY += offsetY;
+  }
+  
+  // Move all leaves
+  for (let leaf of leaves) {
+    leaf.x += offsetX;
+    leaf.y += offsetY;
+  }
+  
+  // Move all flowers
+  for (let flower of flowers) {
+    flower.x += offsetX;
+    flower.y += offsetY;
+  }
+}
+
 function processSerialData(data) {
   if (!data) return;
   
@@ -333,45 +359,24 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
   // Store old positions before recalculation
+  let oldPos = calculatePlantBasePosition();
   let oldPotX = pot.x;
-  let oldPotTopY = pot.y - pot.height/2;
-  let oldPlantBaseY = oldPotTopY + pot.plantStartY;
+  let oldPlantBaseY = oldPos.baseY;
   
   // Recalculate positions
   calculatePotPosition();
   
-  // Calculate offsets
-  let newPotTopY = pot.y - pot.height/2;
-  let newPlantBaseY = newPotTopY + pot.plantStartY;
+  // Calculate new position
+  let newPos = calculatePlantBasePosition();
   
-  let offsetX = pot.x - oldPotX;
-  let offsetY = newPlantBaseY - oldPlantBaseY;
+  // Calculate offsets
+  let offsetX = newPos.baseX - oldPos.baseX;
+  let offsetY = newPos.baseY - oldPos.baseY;
   
   console.log("Window resized - Offsets:", offsetX, offsetY);
   
-  // Move all plant segments
-  for (let segment of plant) {
-    segment.baseStartX += offsetX;
-    segment.baseStartY += offsetY;
-    segment.baseEndX += offsetX;
-    segment.baseEndY += offsetY;
-    segment.startX += offsetX;
-    segment.startY += offsetY;
-    segment.endX += offsetX;
-    segment.endY += offsetY;
-  }
-  
-  // Move all leaves
-  for (let leaf of leaves) {
-    leaf.x += offsetX;
-    leaf.y += offsetY;
-  }
-  
-  // Move all flowers
-  for (let flower of flowers) {
-    flower.x += offsetX;
-    flower.y += offsetY;
-  }
+  // Move all plant components
+  adjustAllPlantPositions(offsetX, offsetY);
 }
 
 function drawBackground() {
@@ -453,6 +458,12 @@ function drawPot() {
     strokeWeight(5);
     let actualPlantStartY = plantBaseY - plantStartYOffset;
     point(pot.x, actualPlantStartY);
+    
+    // Display current offset value
+    fill(255, 255, 0);
+    noStroke();
+    textSize(12);
+    text("plantStartYOffset: " + plantStartYOffset, pot.x - 60, potTopY - 20);
   }
 }
 
@@ -942,268 +953,3 @@ function drawUI() {
   textSize(12);
   
   text("Planted: 11 Nov 2025", 15, 25);
-  
-  let serialStatus;
-  let serialColor;
-  
-  if (serialConnected) {
-    if (millis() - lastDataTime < 5000) {
-      serialStatus = "Arduino Connected";
-      serialColor = color(100, 255, 100);
-    } else {
-      serialStatus = "No recent data";
-      serialColor = color(255, 200, 50);
-    }
-  } else {
-    serialStatus = "Click Connect Button";
-    serialColor = color(255, 200, 50);
-  }
-  
-  fill(serialColor);
-  text(serialStatus, 15, 45);
-  
-  let status = "Mature"; // Starting at 82.5 days, plant is mature
-  let ageInDays = plantAge / 100;
-  
-  if (ageInDays < 30) status = "Seedling";
-  else if (ageInDays < 60) status = "Sprout";
-  else if (ageInDays < 90) status = "Flowering";
-  else status = "Mature";
-  
-  if (flowers.length > 0) status = "Flowering " + status;
-  
-  fill(255);
-  text("Status: " + status, 15, 65);
-  text("Age: " + nf(ageInDays, 1, 1) + " days", 15, 85);
-  text("Leaves: " + leaves.length, 15, 105);
-  text("Flowers: " + flowers.length, 15, 125);
-  
-  let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
-  text("O2: " + sensorData.oxygen, rightColumnX, 85);
-  
-  let needsMessage = "Happy";
-  let needsColor = color(100, 255, 100);
-  
-  if (sensorData.soilMoisture < 300) {
-    needsMessage = "Thirsty";
-    needsColor = color(255, 100, 100);
-  } else if (sensorData.soilMoisture > 700) {
-    needsMessage = "Too wet";
-    needsColor = color(255, 200, 50);
-  }
-  
-  fill(needsColor);
-  text(needsMessage, rightColumnX, 45);
-  
-  noStroke();
-  fill(100);
-  rect(rightColumnX, 95, 80, 8);
-  fill(50, 200, 50);
-  let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
-  moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 95, moistureWidth, 8);
-  
-  fill(255);
-  textSize(10);
-  text("Moisture", rightColumnX, 115);
-}
-
-class StemSegment {
-  constructor(startX, startY, endX, endY, generation, angle, thickness) {
-    this.startX = startX;
-    this.startY = startY;
-    this.endX = endX;
-    this.endY = endY;
-    this.angle = angle;
-    this.thickness = thickness;
-    this.generation = generation;
-    this.canGrow = true;
-    
-    // MORE RANDOM GROWTH PROBABILITY
-    this.growthProbability = map(generation, 0, 12, 0.9, 0.1) * random(0.8, 1.2);
-    this.growthProbability = constrain(this.growthProbability, 0.02, 0.95);
-    
-    this.isRoot = false;
-    
-    this.baseStartX = startX;
-    this.baseStartY = startY;
-    this.baseEndX = endX;
-    this.baseEndY = endY;
-    
-    this.color = this.calculateColor();
-    this.textureOffset = random(1000);
-    
-    // Add random sway intensity
-    this.swayIntensity = random(0.8, 1.2);
-  }
-  
-  calculateColor() {
-    if (this.isRoot) return color(101, 67, 33);
-    
-    let brown = color(120, 80, 60);
-    let green = color(100, 130, 60);
-    
-    // More random color blending
-    let blendAmount = constrain(this.generation / 10 + random(-0.1, 0.1), 0, 1);
-    
-    return lerpColor(brown, green, blendAmount);
-  }
-  
-  updateSway(time) {
-    let swayIntensity = (1 - (this.generation * 0.06)) * this.swayIntensity;
-    swayIntensity = max(swayIntensity, 0.2);
-    
-    // More complex sway pattern
-    let swayAmount = sin(time * 0.7 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.2 +
-                    cos(time * 1.1 + this.generation * 0.5 + this.textureOffset * 1.3) * swayIntensity * 0.4;
-    
-    this.startX = this.baseStartX + swayAmount;
-    this.endX = this.baseEndX + swayAmount * 1.3;
-    
-    let verticalSway = cos(time * 0.5 + this.generation * 0.4 + this.textureOffset * 0.7) * swayIntensity * 0.6;
-    this.startY = this.baseStartY + verticalSway;
-    this.endY = this.baseEndY + verticalSway;
-  }
-  
-  draw() {
-    let dx = this.endX - this.startX;
-    let dy = this.endY - this.startY;
-    let segmentLength = sqrt(dx * dx + dy * dy);
-    
-    if (segmentLength < 0.1) return;
-    
-    let segmentAngle = atan2(dy, dx);
-    
-    if (branchImage && branchImage.width > 0) {
-      push();
-      translate(this.startX, this.startY);
-      rotate(segmentAngle);
-      
-      let tintColor = this.color;
-      // Add some color variation
-      let tintVariation = random(0.9, 1.1);
-      tint(red(tintColor) * tintVariation, green(tintColor) * tintVariation, blue(tintColor) * tintVariation, 220);
-      
-      imageMode(CORNER);
-      
-      let drawWidth = segmentLength;
-      let drawHeight = this.thickness * 5.5;
-      
-      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.3;
-      drawHeight *= heightVariation;
-      
-      image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);
-      
-      pop();
-    } else {
-      stroke(this.color);
-      strokeWeight(this.thickness);
-      line(this.startX, this.startY, this.endX, this.endY);
-      
-      strokeWeight(max(1, this.thickness * 0.3));
-      stroke(red(this.color) - 20, green(this.color) - 10, blue(this.color) - 10, 150);
-      let steps = 4;
-      for (let i = 0; i <= steps; i++) {
-        let t = i / steps;
-        let x = lerp(this.startX, this.endX, t);
-        let y = lerp(this.startY, this.endY, t);
-        let offset = sin(t * PI + time) * this.thickness * 0.3;
-        line(x + offset, y, x - offset, y);
-      }
-    }
-  }
-}
-
-function mousePressed() {
-  let distance = dist(mouseX, mouseY, pot.x, pot.y - pot.height/2);
-  
-  if (distance < pot.width/2) {
-    sensorData.soilMoisture = min(800, sensorData.soilMoisture + 100);
-    console.log("Watered! Soil:", sensorData.soilMoisture);
-  }
-}
-
-function keyPressed() {
-  if (key === ' ') {
-    growPlant();
-    console.log("Manual growth.");
-  }
-  
-  if (key === 'r' || key === 'R') {
-    resetPlant();
-    sensorData.soilMoisture = 650;
-    console.log("Plant reset to 82.5 days!");
-  }
-  
-  if (key === 'a' || key === 'A') {
-    autoGrowth = !autoGrowth;
-    console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
-  }
-  
-  if (key === '7') {
-    showDebugInfo = !showDebugInfo;
-    console.log("Debug info:", showDebugInfo ? "ON" : "OFF");
-  }
-  
-  // Position adjustment controls
-  let needsUpdate = false;
-  
-  if (key === '1') {
-    potEmbedAmount = max(0, potEmbedAmount - 10);
-    needsUpdate = true;
-  }
-  
-  if (key === '2') {
-    potEmbedAmount += 10;
-    needsUpdate = true;
-  }
-  
-  if (key === '3') {
-    potHorizontalPosition = max(0, potHorizontalPosition - 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '4') {
-    potHorizontalPosition = min(1, potHorizontalPosition + 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '5') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset = max(0, plantStartYOffset - 5);
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset decreased to:", plantStartYOffset);
-  }
-  
-  if (key === '6') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset += 5;
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset increased to:", plantStartYOffset);
-  }
-  
-  if (key === '8') {
-    plantStartHeight = max(5, plantStartHeight - 5);
-    console.log("plantStartHeight decreased to:", plantStartHeight);
-  }
-  
-  if (key === '9') {
-    plantStartHeight += 5;
-    console.log("plantStartHeight increased to:", plantStartHeight);
-  }
-  
-  if (needsUpdate) {
-    console.log("Position updated:");
-    console.log("  potEmbedAmount:", potEmbedAmount);
-    console.log("  potHorizontalPosition:", potHorizontalPosition);
-    calculatePotPosition();
-    windowResized(); // This will update all positions
-  }
-}

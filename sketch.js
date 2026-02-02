@@ -952,4 +952,4 @@ function drawUI() {
   strokeWeight(1);
   textSize(12);
   
-  text("Planted: 11 Nov 2025", 15, 25);
+  text

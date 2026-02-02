@@ -195,66 +195,36 @@ function resetPlant() {
   // Create initial stem segment - taller since plant is 82.5 days old
   plant.push(new StemSegment(pos.baseX, pos.baseY, pos.baseX, pos.baseY - (plantStartHeight * 2), 0, -PI/2, 7));
   
-  // Since plant is 82.5 days old, add more RANDOM initial growth
-  // Add initial segments with more randomness
-  let currentSegment = plant[0];
-  
+  // Since plant is 82.5 days old, add some initial growth
+  // Add more segments
   for (let i = 0; i < 15; i++) {
-    // Randomly decide: extend stem or create branch
-    if (random() < 0.7 || plant.length < 3) {
-      // Extend stem with more randomness
-      let angleVariation = random(-0.6, 0.6); // More variation
-      let newAngle = currentSegment.angle + angleVariation;
-      let length = random(20, 35) * (1 - currentSegment.generation * 0.05); // More length variation
-      
-      let newX = currentSegment.endX + cos(newAngle) * length;
-      let newY = currentSegment.endY + sin(newAngle) * length;
-      let newThickness = currentSegment.thickness * 0.92;
-      currentSegment = new StemSegment(currentSegment.endX, currentSegment.endY, newX, newY, 
-                                       currentSegment.generation + 1, newAngle, newThickness);
-      plant.push(currentSegment);
-    } else {
-      // Create a branch from a random existing segment
-      let randomSegment = plant[floor(random(plant.length))];
-      createBranch(randomSegment);
-      // Set current segment to the new branch sometimes
-      if (random() < 0.3) {
-        currentSegment = plant[plant.length - 1];
-      }
+    if (plant.length < 20) {
+      let segment = plant[plant.length - 1];
+      extendStem(segment);
     }
   }
   
-  // Add random branches
-  for (let i = 0; i < 8; i++) {
-    if (plant.length > 2) {
-      // Pick a segment that's not the most recent one for more variation
-      let segmentIndex = floor(random(plant.length - 3));
-      createBranch(plant[segmentIndex]);
-    }
-  }
-  
-  // Add leaves with more random distribution
-  for (let i = 0; i < 25; i++) {
-    if (plant.length > 1) {
-      // Prefer adding leaves to older segments (not just the tips)
-      let segmentIndex;
-      if (random() < 0.7) {
-        // 70% chance: add to a mature segment (not the newest ones)
-        segmentIndex = floor(random(2, max(3, plant.length - 5)));
-      } else {
-        // 30% chance: add to a newer segment
-        segmentIndex = floor(random(max(0, plant.length - 8), plant.length));
-      }
-      createLeaf(plant[segmentIndex]);
-    }
-  }
-  
-  // Add flowers with random distribution
+  // Add some branches
   for (let i = 0; i < 5; i++) {
+    if (plant.length > 5) {
+      let segment = plant[floor(random(2, plant.length - 3))];
+      createBranch(segment);
+    }
+  }
+  
+  // Add leaves (plant is 82.5 days old, so it should have leaves)
+  for (let i = 0; i < 12; i++) {
     if (plant.length > 3) {
-      // Flowers appear on various segments, not just tips
-      let segmentIndex = floor(random(3, plant.length));
-      createFlower(plant[segmentIndex]);
+      let segment = plant[floor(random(plant.length))];
+      createLeaf(segment);
+    }
+  }
+  
+  // Add flowers if plant is old enough (82.5 days > 60 days, so yes)
+  for (let i = 0; i < 3; i++) {
+    if (plant.length > 5) {
+      let segment = plant[floor(random(5, plant.length))];
+      createFlower(segment);
     }
   }
   
@@ -589,121 +559,66 @@ function growPlant() {
     return;
   }
   
-  // MORE RANDOM: Choose from a wider pool of segments
-  let possibleSegments = plant.filter(segment => 
-    segment.canGrow && random() < segment.growthProbability * 1.5 // Increase chance
+  let growingSegments = plant.filter(segment => 
+    segment.canGrow && random() < segment.growthProbability
   );
   
-  if (possibleSegments.length === 0) return;
+  if (growingSegments.length === 0) return;
   
-  // MORE RANDOM: Choose a segment with some preference for newer ones but not exclusively
-  let segment;
-  if (random() < 0.6) {
-    // 60% chance: choose a newer segment
-    segment = possibleSegments[floor(random(max(0, possibleSegments.length - 5), possibleSegments.length))];
-  } else {
-    // 40% chance: choose any segment (more random)
-    segment = random(possibleSegments);
-  }
-  
+  let segment = random(growingSegments);
   let growthType = random();
   let ageFactor = getAgeFactor();
   
-  // MORE RANDOM GROWTH PATTERNS
+  // Growth patterns change with age
+  // Since we start at 82.5 days (ageFactor ~ 0.6875), we use the mature pattern
   if (ageFactor < 0.3) {
-    // Young plant: more varied growth
-    if (growthType < 0.7) extendStem(segment);
-    else if (growthType < 0.9) createBranch(segment);
+    // Young plant: mostly stem growth
+    if (growthType < 0.8) extendStem(segment);
     else createLeaf(segment);
   } else if (ageFactor < 0.6) {
-    // Adolescent: balanced but random growth
+    // Adolescent: balanced growth
     if (growthType < 0.4) extendStem(segment);
     else if (growthType < 0.7) createBranch(segment);
-    else if (growthType < 0.95) createLeaf(segment);
-    else createFlower(segment);
+    else createLeaf(segment);
   } else {
-    // Mature plant: even more random pattern
-    if (growthType < 0.15) extendStem(segment);
-    else if (growthType < 0.3) createBranch(segment);
-    else if (growthType < 0.9) {
-      if (random() < 0.8) createLeaf(segment);
-      else createBranch(segment); // Sometimes branches even on mature plants
-    }
-    else createFlower(segment);
+    // Mature plant (our starting point): mostly leaves and flowers
+    if (growthType < 0.1) extendStem(segment); // Very little new stem growth
+    else if (growthType < 0.2) createBranch(segment); // Some branching
+    else if (growthType < 0.85) createLeaf(segment); // Mostly new leaves
+    else createFlower(segment); // Some flowers
   }
 }
 
 function extendStem(segment) {
-  // MORE RANDOM ANGLE: Use a curved growth pattern sometimes
-  let angleVariation;
-  if (random() < 0.3) {
-    // 30% chance: more dramatic curve
-    angleVariation = random(-0.8, 0.8);
-  } else {
-    // 70% chance: normal curve
-    angleVariation = random(-0.5, 0.5);
-  }
+  let angle = segment.angle + random(-0.3, 0.3); // Less variation
+  let length = random(15, 25) * (1 - segment.generation * 0.08); // Shorter growth
   
-  let newAngle = segment.angle + angleVariation;
-  
-  // MORE RANDOM LENGTH
-  let baseLength = random(15, 35);
-  let length = baseLength * (1 - segment.generation * 0.06); // Less reduction per generation
-  
-  // Add some length randomness based on age
+  // Older plants have shorter new growth
   let ageFactor = getAgeFactor();
-  length = length * (1 - ageFactor * 0.2); // Less reduction for age
+  length = length * (1 - ageFactor * 0.3);
   
-  let newX = segment.endX + cos(newAngle) * length;
-  let newY = segment.endY + sin(newAngle) * length;
-  
-  // MORE RANDOM THICKNESS
-  let thicknessVariation = random(0.9, 0.98);
-  let newThickness = segment.thickness * thicknessVariation;
-  
+  let newX = segment.endX + cos(angle) * length;
+  let newY = segment.endY + sin(angle) * length;
+  let newThickness = segment.thickness * 0.96;
   let newSegment = new StemSegment(segment.endX, segment.endY, newX, newY, 
-                                   segment.generation + 1, newAngle, newThickness);
-  
-  // MORE RANDOM GROWTH PROBABILITY FOR NEW SEGMENTS
-  newSegment.growthProbability *= random(0.8, 1.0);
-  
+                                   segment.generation + 1, angle, newThickness);
   plant.push(newSegment);
 }
 
 function createBranch(segment) {
-  // MORE RANDOM BRANCH ANGLE
-  let branchDirection = random() < 0.5 ? -1 : 1; // Random left or right
-  let branchAngle;
+  let branchAngle = segment.angle + random(-PI/2.5, PI/2.5);
+  let branchLength = random(10, 20) * (1 - segment.generation * 0.12); // Shorter branches
   
-  if (random() < 0.4) {
-    // 40% chance: steep branch
-    branchAngle = segment.angle + branchDirection * random(PI/3, PI/2);
-  } else {
-    // 60% chance: moderate branch
-    branchAngle = segment.angle + branchDirection * random(PI/6, PI/3);
-  }
-  
-  // MORE RANDOM BRANCH LENGTH
-  let baseLength = random(12, 28);
-  let branchLength = baseLength * (1 - segment.generation * 0.08);
-  
-  // Add randomness for older plants
+  // Older plants have shorter branches
   let ageFactor = getAgeFactor();
-  branchLength = branchLength * (1 - ageFactor * 0.3);
+  branchLength = branchLength * (1 - ageFactor * 0.4);
   
   let newX = segment.endX + cos(branchAngle) * branchLength;
   let newY = segment.endY + sin(branchAngle) * branchLength;
-  
-  // MORE RANDOM THICKNESS
-  let thicknessVariation = random(0.65, 0.8);
-  let branchThickness = segment.thickness * thicknessVariation;
-  
+  let branchThickness = segment.thickness * 0.75;
   let branch = new StemSegment(segment.endX, segment.endY, newX, newY, 
                                segment.generation + 1, branchAngle, branchThickness);
-  
-  // MORE RANDOM GROWTH PROBABILITY FOR BRANCHES
-  branch.growthProbability = segment.growthProbability * random(0.7, 0.9);
-  
+  branch.growthProbability = segment.growthProbability * 0.85;
   plant.push(branch);
 }
 
@@ -711,16 +626,14 @@ function createLeaf(segment) {
   let leaf = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.7, 1.3), // More size variation
-    angle: segment.angle + random(-PI/2.5, PI/2.5), // More angle variation
+    size: random(0.8, 1.2),
+    angle: segment.angle + random(-PI/4, PI/4), // Less variation
     age: 0,
-    maxAge: random(900, 1400), // More age variation
+    maxAge: random(1000, 1500), // Leaves last longer
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.4, 1.2), // More sway variation
-    colorVariation: random(0.7, 1.3), // More color variation
-    isAttached: true,
-    // Add random rotation speed
-    rotationSpeed: random(-0.01, 0.01)
+    swayAmount: random(0.3, 1.0),
+    colorVariation: random(0.8, 1.2),
+    isAttached: true
   };
   leaves.push(leaf);
 }
@@ -731,17 +644,15 @@ function createFlower(segment) {
   let flower = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.6, 1.4), // More size variation
-    angle: segment.angle + random(-PI/3, PI/3), // More angle variation
+    size: random(0.7, 1.2),
+    angle: segment.angle + random(-PI/6, PI/6), // Less variation
     age: 0,
-    maxAge: random(700, 1100), // More age variation
+    maxAge: random(800, 1200), // Flowers last longer
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.2, 0.7), // More sway variation
-    colorVariation: random(0.8, 1.2), // More color variation
+    swayAmount: random(0.2, 0.6),
+    colorVariation: random(0.9, 1.1),
     bloomProgress: 0,
-    isBlooming: false,
-    // Add random bloom speed
-    bloomSpeed: random(0.8, 1.2)
+    isBlooming: false
   };
   flowers.push(flower);
 }
@@ -754,13 +665,7 @@ function updatePlant() {
   for (let i = leaves.length - 1; i >= 0; i--) {
     let leaf = leaves[i];
     leaf.age++;
-    
-    // More interesting sway with multiple frequencies
-    leaf.swayOffset = sin(time * 1.5 + leaf.swayPhase) * leaf.swayAmount * 0.7 +
-                     cos(time * 2.3 + leaf.swayPhase * 1.3) * leaf.swayAmount * 0.3;
-    
-    // Add slow rotation
-    leaf.angle += leaf.rotationSpeed || 0;
+    leaf.swayOffset = sin(time * 1.5 + leaf.swayPhase) * leaf.swayAmount; // Slower sway
     
     // Older plants drop leaves faster
     let ageFactor = getAgeFactor();
@@ -780,15 +685,10 @@ function updatePlant() {
   for (let i = flowers.length - 1; i >= 0; i--) {
     let flower = flowers[i];
     flower.age++;
+    flower.swayOffset = sin(time * 1.0 + flower.swayPhase) * flower.swayAmount; // Slower sway
     
-    // More interesting sway
-    flower.swayOffset = sin(time * 1.0 + flower.swayPhase) * flower.swayAmount * 0.8 +
-                       sin(time * 1.8 + flower.swayPhase * 0.7) * flower.swayAmount * 0.2;
-    
-    // Variable bloom speed
-    let bloomSpeed = flower.bloomSpeed || 1;
-    if (flower.age < 40 * bloomSpeed) {
-      flower.bloomProgress = flower.age / (40 * bloomSpeed);
+    if (flower.age < 40) { // Slower blooming
+      flower.bloomProgress = flower.age / 40;
     } else {
       flower.bloomProgress = 1;
       flower.isBlooming = true;
@@ -829,10 +729,7 @@ function drawRealLeaf(leaf) {
     alpha = map(leaf.age, leaf.maxAge, leaf.maxAge + 100, 255, 0);
   }
   
-  // More color variation
-  let tintValue = 255 * leaf.colorVariation;
-  tint(tintValue, 255, 255, alpha);
-  
+  tint(255 * leaf.colorVariation, 255, 255, alpha);
   imageMode(CENTER);
   
   let leafSize = 35 * leaf.size;
@@ -857,10 +754,7 @@ function drawRealFlower(flower) {
     alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 255, 0);
   }
   
-  // More color variation
-  let tintValue = 255 * flower.colorVariation;
-  tint(tintValue, 255, 255, alpha);
-  
+  tint(255 * flower.colorVariation, 255, 255, alpha);
   rotate(flower.angle);
   imageMode(CENTER);
   
@@ -876,20 +770,15 @@ function drawFallbackLeaf(leaf) {
   rotate(leaf.angle);
   
   let alpha = leaf.isAttached ? 200 : 100;
-  
-  // Use color variation for fallback leaves too
-  let greenValue = 150 * leaf.colorVariation;
-  fill(50, constrain(greenValue, 100, 200), 70, alpha);
-  
+  fill(50, 150, 70, alpha);
   noStroke();
   
-  // More organic leaf shape
   beginShape();
   vertex(0, 0);
   for (let i = 0; i <= TWO_PI; i += 0.2) {
-    let r = 12 * leaf.size * (0.4 + 0.6 * sin(i * 1.8)); // More organic shape
+    let r = 12 * leaf.size * (0.5 + 0.5 * sin(i * 2));
     let x = cos(i) * r;
-    let y = sin(i) * r * 0.7;
+    let y = sin(i) * r * 0.6;
     curveVertex(x, y);
   }
   endShape(CLOSE);
@@ -906,22 +795,12 @@ function drawFallbackFlower(flower) {
     alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 180, 0);
   }
   
-  // Variable number of petals for more randomness
-  let petalCount = floor(random(4, 7));
-  
-  for (let i = 0; i < petalCount; i++) {
+  for (let i = 0; i < 5; i++) {
     push();
-    rotate((TWO_PI / petalCount) * i + flower.angle);
-    
-    // Color variation for petals
-    let redValue = 255 * flower.colorVariation;
-    fill(constrain(redValue, 200, 255), 100, 150, alpha);
-    
+    rotate((TWO_PI / 5) * i + flower.angle);
+    fill(255, 100, 150, alpha);
     noStroke();
-    // Random petal shape
-    let petalWidth = 12 * flower.size * random(0.8, 1.2);
-    let petalHeight = 6 * flower.size * random(0.8, 1.2);
-    ellipse(0, -10 * flower.size, petalWidth, petalHeight);
+    ellipse(0, -10 * flower.size, 12 * flower.size, 6 * flower.size);
     pop();
   }
   
@@ -1020,9 +899,8 @@ class StemSegment {
     this.generation = generation;
     this.canGrow = true;
     
-    // MORE RANDOM GROWTH PROBABILITY
-    this.growthProbability = map(generation, 0, 12, 0.9, 0.1) * random(0.8, 1.2);
-    this.growthProbability = constrain(this.growthProbability, 0.02, 0.95);
+    this.growthProbability = map(generation, 0, 10, 0.9, 0.15);
+    this.growthProbability = max(this.growthProbability, 0.05);
     
     this.isRoot = false;
     
@@ -1033,9 +911,6 @@ class StemSegment {
     
     this.color = this.calculateColor();
     this.textureOffset = random(1000);
-    
-    // Add random sway intensity
-    this.swayIntensity = random(0.8, 1.2);
   }
   
   calculateColor() {
@@ -1043,25 +918,21 @@ class StemSegment {
     
     let brown = color(120, 80, 60);
     let green = color(100, 130, 60);
-    
-    // More random color blending
-    let blendAmount = constrain(this.generation / 10 + random(-0.1, 0.1), 0, 1);
+    let blendAmount = constrain(this.generation / 12, 0, 1);
     
     return lerpColor(brown, green, blendAmount);
   }
   
   updateSway(time) {
-    let swayIntensity = (1 - (this.generation * 0.06)) * this.swayIntensity;
-    swayIntensity = max(swayIntensity, 0.2);
+    let swayIntensity = 1 - (this.generation * 0.08);
+    swayIntensity = max(swayIntensity, 0.3);
     
-    // More complex sway pattern
-    let swayAmount = sin(time * 0.7 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.2 +
-                    cos(time * 1.1 + this.generation * 0.5 + this.textureOffset * 1.3) * swayIntensity * 0.4;
+    let swayAmount = sin(time * 0.8 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.5;
     
     this.startX = this.baseStartX + swayAmount;
-    this.endX = this.baseEndX + swayAmount * 1.3;
+    this.endX = this.baseEndX + swayAmount * 1.2;
     
-    let verticalSway = cos(time * 0.5 + this.generation * 0.4 + this.textureOffset * 0.7) * swayIntensity * 0.6;
+    let verticalSway = cos(time * 0.6 + this.generation * 0.4) * swayIntensity * 0.5;
     this.startY = this.baseStartY + verticalSway;
     this.endY = this.baseEndY + verticalSway;
   }
@@ -1081,16 +952,14 @@ class StemSegment {
       rotate(segmentAngle);
       
       let tintColor = this.color;
-      // Add some color variation
-      let tintVariation = random(0.9, 1.1);
-      tint(red(tintColor) * tintVariation, green(tintColor) * tintVariation, blue(tintColor) * tintVariation, 220);
+      tint(red(tintColor), green(tintColor), blue(tintColor), 220);
       
       imageMode(CORNER);
       
       let drawWidth = segmentLength;
       let drawHeight = this.thickness * 5.5;
       
-      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.3;
+      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.2;
       drawHeight *= heightVariation;
       
       image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);

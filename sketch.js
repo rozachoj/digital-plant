@@ -520,7 +520,7 @@ function drawDebugInfo() {
   text("CONTROLS:", width - 150, 20);
   text("1/2: Pot depth", width - 150, 40);
   text("3/4: Pot horizontal", width - 150, 55);
-  text("5/6: Plant offset", width - 150, 150);
+  text("5/6: Plant offset", width - 150, 70);
   text("8/9: Plant height", width - 150, 85);
   text("7: Toggle debug", width - 150, 100);
   text("R: Reset plant", width - 150, 115);

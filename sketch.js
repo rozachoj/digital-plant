@@ -44,7 +44,7 @@ let potEmbedAmount = 150; // How much pot is embedded in ground (0-300)
 let potHorizontalPosition = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
 
 // Plant starting position (relative to pot)
-let plantStartYOffset = 30; // Distance from top of pot where plant starts
+let plantStartYOffset = 30; // Distance from top of pot where plant starts (can be positive OR negative)
 let plantStartHeight = 20; // Initial stem height
 
 // =====================================================
@@ -137,7 +137,7 @@ function calculatePotPosition() {
 function calculatePlantBasePosition() {
   let potTopY = pot.y - pot.height/2; // Top edge of pot
   let plantBaseY = potTopY + pot.plantStartY; // Where plant emerges from pot
-  let actualPlantStartY = plantBaseY - plantStartYOffset;
+  let actualPlantStartY = plantBaseY - plantStartYOffset; // Adjusted by offset
   
   return {
     baseX: pot.x,
@@ -195,36 +195,66 @@ function resetPlant() {
   // Create initial stem segment - taller since plant is 82.5 days old
   plant.push(new StemSegment(pos.baseX, pos.baseY, pos.baseX, pos.baseY - (plantStartHeight * 2), 0, -PI/2, 7));
   
-  // Since plant is 82.5 days old, add some initial growth
-  // Add more segments
+  // Since plant is 82.5 days old, add more RANDOM initial growth
+  // Add initial segments with more randomness
+  let currentSegment = plant[0];
+  
   for (let i = 0; i < 15; i++) {
-    if (plant.length < 20) {
-      let segment = plant[plant.length - 1];
-      extendStem(segment);
+    // Randomly decide: extend stem or create branch
+    if (random() < 0.7 || plant.length < 3) {
+      // Extend stem with more randomness
+      let angleVariation = random(-0.6, 0.6); // More variation
+      let newAngle = currentSegment.angle + angleVariation;
+      let length = random(20, 35) * (1 - currentSegment.generation * 0.05); // More length variation
+      
+      let newX = currentSegment.endX + cos(newAngle) * length;
+      let newY = currentSegment.endY + sin(newAngle) * length;
+      let newThickness = currentSegment.thickness * 0.92;
+      currentSegment = new StemSegment(currentSegment.endX, currentSegment.endY, newX, newY, 
+                                       currentSegment.generation + 1, newAngle, newThickness);
+      plant.push(currentSegment);
+    } else {
+      // Create a branch from a random existing segment
+      let randomSegment = plant[floor(random(plant.length))];
+      createBranch(randomSegment);
+      // Set current segment to the new branch sometimes
+      if (random() < 0.3) {
+        currentSegment = plant[plant.length - 1];
+      }
     }
   }
   
-  // Add some branches
+  // Add random branches
+  for (let i = 0; i < 8; i++) {
+    if (plant.length > 2) {
+      // Pick a segment that's not the most recent one for more variation
+      let segmentIndex = floor(random(plant.length - 3));
+      createBranch(plant[segmentIndex]);
+    }
+  }
+  
+  // Add leaves with more random distribution
+  for (let i = 0; i < 25; i++) {
+    if (plant.length > 1) {
+      // Prefer adding leaves to older segments (not just the tips)
+      let segmentIndex;
+      if (random() < 0.7) {
+        // 70% chance: add to a mature segment (not the newest ones)
+        segmentIndex = floor(random(2, max(3, plant.length - 5)));
+      } else {
+        // 30% chance: add to a newer segment
+        segmentIndex = floor(random(max(0, plant.length - 8), plant.length));
+      }
+      createLeaf(plant[segmentIndex]);
+    }
+  }
+  
+  // Add flowers with random distribution
   for (let i = 0; i < 5; i++) {
-    if (plant.length > 5) {
-      let segment = plant[floor(random(2, plant.length - 3))];
-      createBranch(segment);
-    }
-  }
-  
-  // Add leaves (plant is 82.5 days old, so it should have leaves)
-  for (let i = 0; i < 12; i++) {
     if (plant.length > 3) {
-      let segment = plant[floor(random(plant.length))];
-      createLeaf(segment);
-    }
-  }
-  
-  // Add flowers if plant is old enough (82.5 days > 60 days, so yes)
-  for (let i = 0; i < 3; i++) {
-    if (plant.length > 5) {
-      let segment = plant[floor(random(5, plant.length))];
-      createFlower(segment);
+      // Flowers appear on various segments, not just tips
+      let segmentIndex = floor(random(3, plant.length));
+      createFlower(plant[segmentIndex]);
     }
   }
   
@@ -247,6 +277,32 @@ function adjustPlantPosition(offsetY) {
   
   // Move all flowers
   for (let flower of flowers) {
+    flower.y += offsetY;
+  }
+}
+
+function adjustAllPlantPositions(offsetX, offsetY) {
+  // Move all plant segments
+  for (let segment of plant) {
+    segment.baseStartX += offsetX;
+    segment.baseStartY += offsetY;
+    segment.baseEndX += offsetX;
+    segment.baseEndY += offsetY;
+    segment.startX += offsetX;
+    segment.startY += offsetY;
+    segment.endX += offsetX;
+    segment.endY += offsetY;
+  }
+  
+  // Move all leaves
+  for (let leaf of leaves) {
+    leaf.x += offsetX;
+    leaf.y += offsetY;
+  }
+  
+  // Move all flowers
+  for (let flower of flowers) {
+    flower.x += offsetX;
     flower.y += offsetY;
   }
 }
@@ -303,45 +359,24 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   
   // Store old positions before recalculation
+  let oldPos = calculatePlantBasePosition();
   let oldPotX = pot.x;
-  let oldPotTopY = pot.y - pot.height/2;
-  let oldPlantBaseY = oldPotTopY + pot.plantStartY;
+  let oldPlantBaseY = oldPos.baseY;
   
   // Recalculate positions
   calculatePotPosition();
   
-  // Calculate offsets
-  let newPotTopY = pot.y - pot.height/2;
-  let newPlantBaseY = newPotTopY + pot.plantStartY;
+  // Calculate new position
+  let newPos = calculatePlantBasePosition();
   
-  let offsetX = pot.x - oldPotX;
-  let offsetY = newPlantBaseY - oldPlantBaseY;
+  // Calculate offsets
+  let offsetX = newPos.baseX - oldPos.baseX;
+  let offsetY = newPos.baseY - oldPos.baseY;
   
   console.log("Window resized - Offsets:", offsetX, offsetY);
   
-  // Move all plant segments
-  for (let segment of plant) {
-    segment.baseStartX += offsetX;
-    segment.baseStartY += offsetY;
-    segment.baseEndX += offsetX;
-    segment.baseEndY += offsetY;
-    segment.startX += offsetX;
-    segment.startY += offsetY;
-    segment.endX += offsetX;
-    segment.endY += offsetY;
-  }
-  
-  // Move all leaves
-  for (let leaf of leaves) {
-    leaf.x += offsetX;
-    leaf.y += offsetY;
-  }
-  
-  // Move all flowers
-  for (let flower of flowers) {
-    flower.x += offsetX;
-    flower.y += offsetY;
-  }
+  // Move all plant components
+  adjustAllPlantPositions(offsetX, offsetY);
 }
 
 function drawBackground() {
@@ -423,6 +458,12 @@ function drawPot() {
     strokeWeight(5);
     let actualPlantStartY = plantBaseY - plantStartYOffset;
     point(pot.x, actualPlantStartY);
+    
+    // Display current offset value
+    fill(255, 255, 0);
+    noStroke();
+    textSize(12);
+    text("plantStartYOffset: " + plantStartYOffset, pot.x - 60, potTopY - 20);
   }
 }
 
@@ -559,66 +600,121 @@ function growPlant() {
     return;
   }
   
-  let growingSegments = plant.filter(segment => 
-    segment.canGrow && random() < segment.growthProbability
+  // MORE RANDOM: Choose from a wider pool of segments
+  let possibleSegments = plant.filter(segment => 
+    segment.canGrow && random() < segment.growthProbability * 1.5 // Increase chance
   );
   
-  if (growingSegments.length === 0) return;
+  if (possibleSegments.length === 0) return;
   
-  let segment = random(growingSegments);
+  // MORE RANDOM: Choose a segment with some preference for newer ones but not exclusively
+  let segment;
+  if (random() < 0.6) {
+    // 60% chance: choose a newer segment
+    segment = possibleSegments[floor(random(max(0, possibleSegments.length - 5), possibleSegments.length))];
+  } else {
+    // 40% chance: choose any segment (more random)
+    segment = random(possibleSegments);
+  }
+  
   let growthType = random();
   let ageFactor = getAgeFactor();
   
-  // Growth patterns change with age
-  // Since we start at 82.5 days (ageFactor ~ 0.6875), we use the mature pattern
+  // MORE RANDOM GROWTH PATTERNS
   if (ageFactor < 0.3) {
-    // Young plant: mostly stem growth
-    if (growthType < 0.8) extendStem(segment);
+    // Young plant: more varied growth
+    if (growthType < 0.7) extendStem(segment);
+    else if (growthType < 0.9) createBranch(segment);
     else createLeaf(segment);
   } else if (ageFactor < 0.6) {
-    // Adolescent: balanced growth
+    // Adolescent: balanced but random growth
     if (growthType < 0.4) extendStem(segment);
     else if (growthType < 0.7) createBranch(segment);
-    else createLeaf(segment);
+    else if (growthType < 0.95) createLeaf(segment);
+    else createFlower(segment);
   } else {
-    // Mature plant (our starting point): mostly leaves and flowers
-    if (growthType < 0.1) extendStem(segment); // Very little new stem growth
-    else if (growthType < 0.2) createBranch(segment); // Some branching
-    else if (growthType < 0.85) createLeaf(segment); // Mostly new leaves
-    else createFlower(segment); // Some flowers
+    // Mature plant: even more random pattern
+    if (growthType < 0.15) extendStem(segment);
+    else if (growthType < 0.3) createBranch(segment);
+    else if (growthType < 0.9) {
+      if (random() < 0.8) createLeaf(segment);
+      else createBranch(segment); // Sometimes branches even on mature plants
+    }
+    else createFlower(segment);
   }
 }
 
 function extendStem(segment) {
-  let angle = segment.angle + random(-0.3, 0.3); // Less variation
-  let length = random(15, 25) * (1 - segment.generation * 0.08); // Shorter growth
+  // MORE RANDOM ANGLE: Use a curved growth pattern sometimes
+  let angleVariation;
+  if (random() < 0.3) {
+    // 30% chance: more dramatic curve
+    angleVariation = random(-0.8, 0.8);
+  } else {
+    // 70% chance: normal curve
+    angleVariation = random(-0.5, 0.5);
+  }
   
-  // Older plants have shorter new growth
+  let newAngle = segment.angle + angleVariation;
+  
+  // MORE RANDOM LENGTH
+  let baseLength = random(15, 35);
+  let length = baseLength * (1 - segment.generation * 0.06); // Less reduction per generation
+  
+  // Add some length randomness based on age
   let ageFactor = getAgeFactor();
-  length = length * (1 - ageFactor * 0.3);
+  length = length * (1 - ageFactor * 0.2); // Less reduction for age
   
-  let newX = segment.endX + cos(angle) * length;
-  let newY = segment.endY + sin(angle) * length;
-  let newThickness = segment.thickness * 0.96;
+  let newX = segment.endX + cos(newAngle) * length;
+  let newY = segment.endY + sin(newAngle) * length;
+  
+  // MORE RANDOM THICKNESS
+  let thicknessVariation = random(0.9, 0.98);
+  let newThickness = segment.thickness * thicknessVariation;
+  
   let newSegment = new StemSegment(segment.endX, segment.endY, newX, newY, 
-                                   segment.generation + 1, angle, newThickness);
+                                   segment.generation + 1, newAngle, newThickness);
+  
+  // MORE RANDOM GROWTH PROBABILITY FOR NEW SEGMENTS
+  newSegment.growthProbability *= random(0.8, 1.0);
+  
   plant.push(newSegment);
 }
 
 function createBranch(segment) {
-  let branchAngle = segment.angle + random(-PI/2.5, PI/2.5);
-  let branchLength = random(10, 20) * (1 - segment.generation * 0.12); // Shorter branches
+  // MORE RANDOM BRANCH ANGLE
+  let branchDirection = random() < 0.5 ? -1 : 1; // Random left or right
+  let branchAngle;
   
-  // Older plants have shorter branches
+  if (random() < 0.4) {
+    // 40% chance: steep branch
+    branchAngle = segment.angle + branchDirection * random(PI/3, PI/2);
+  } else {
+    // 60% chance: moderate branch
+    branchAngle = segment.angle + branchDirection * random(PI/6, PI/3);
+  }
+  
+  // MORE RANDOM BRANCH LENGTH
+  let baseLength = random(12, 28);
+  let branchLength = baseLength * (1 - segment.generation * 0.08);
+  
+  // Add randomness for older plants
   let ageFactor = getAgeFactor();
-  branchLength = branchLength * (1 - ageFactor * 0.4);
+  branchLength = branchLength * (1 - ageFactor * 0.3);
   
   let newX = segment.endX + cos(branchAngle) * branchLength;
   let newY = segment.endY + sin(branchAngle) * branchLength;
-  let branchThickness = segment.thickness * 0.75;
+  
+  // MORE RANDOM THICKNESS
+  let thicknessVariation = random(0.65, 0.8);
+  let branchThickness = segment.thickness * thicknessVariation;
+  
   let branch = new StemSegment(segment.endX, segment.endY, newX, newY, 
                                segment.generation + 1, branchAngle, branchThickness);
-  branch.growthProbability = segment.growthProbability * 0.85;
+  
+  // MORE RANDOM GROWTH PROBABILITY FOR BRANCHES
+  branch.growthProbability = segment.growthProbability * random(0.7, 0.9);
+  
   plant.push(branch);
 }
 
@@ -626,14 +722,16 @@ function createLeaf(segment) {
   let leaf = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.8, 1.2),
-    angle: segment.angle + random(-PI/4, PI/4), // Less variation
+    size: random(0.7, 1.3), // More size variation
+    angle: segment.angle + random(-PI/2.5, PI/2.5), // More angle variation
     age: 0,
-    maxAge: random(1000, 1500), // Leaves last longer
+    maxAge: random(900, 1400), // More age variation
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.3, 1.0),
-    colorVariation: random(0.8, 1.2),
-    isAttached: true
+    swayAmount: random(0.4, 1.2), // More sway variation
+    colorVariation: random(0.7, 1.3), // More color variation
+    isAttached: true,
+    // Add random rotation speed
+    rotationSpeed: random(-0.01, 0.01)
   };
   leaves.push(leaf);
 }
@@ -644,15 +742,17 @@ function createFlower(segment) {
   let flower = {
     x: segment.endX,
     y: segment.endY,
-    size: random(0.7, 1.2),
-    angle: segment.angle + random(-PI/6, PI/6), // Less variation
+    size: random(0.6, 1.4), // More size variation
+    angle: segment.angle + random(-PI/3, PI/3), // More angle variation
     age: 0,
-    maxAge: random(800, 1200), // Flowers last longer
+    maxAge: random(700, 1100), // More age variation
     swayPhase: random(TWO_PI),
-    swayAmount: random(0.2, 0.6),
-    colorVariation: random(0.9, 1.1),
+    swayAmount: random(0.2, 0.7), // More sway variation
+    colorVariation: random(0.8, 1.2), // More color variation
     bloomProgress: 0,
-    isBlooming: false
+    isBlooming: false,
+    // Add random bloom speed
+    bloomSpeed: random(0.8, 1.2)
   };
   flowers.push(flower);
 }
@@ -665,7 +765,13 @@ function updatePlant() {
   for (let i = leaves.length - 1; i >= 0; i--) {
     let leaf = leaves[i];
     leaf.age++;
-    leaf.swayOffset = sin(time * 1.5 + leaf.swayPhase) * leaf.swayAmount; // Slower sway
+    
+    // More interesting sway with multiple frequencies
+    leaf.swayOffset = sin(time * 1.5 + leaf.swayPhase) * leaf.swayAmount * 0.7 +
+                     cos(time * 2.3 + leaf.swayPhase * 1.3) * leaf.swayAmount * 0.3;
+    
+    // Add slow rotation
+    leaf.angle += leaf.rotationSpeed || 0;
     
     // Older plants drop leaves faster
     let ageFactor = getAgeFactor();
@@ -685,10 +791,15 @@ function updatePlant() {
   for (let i = flowers.length - 1; i >= 0; i--) {
     let flower = flowers[i];
     flower.age++;
-    flower.swayOffset = sin(time * 1.0 + flower.swayPhase) * flower.swayAmount; // Slower sway
     
-    if (flower.age < 40) { // Slower blooming
-      flower.bloomProgress = flower.age / 40;
+    // More interesting sway
+    flower.swayOffset = sin(time * 1.0 + flower.swayPhase) * flower.swayAmount * 0.8 +
+                       sin(time * 1.8 + flower.swayPhase * 0.7) * flower.swayAmount * 0.2;
+    
+    // Variable bloom speed
+    let bloomSpeed = flower.bloomSpeed || 1;
+    if (flower.age < 40 * bloomSpeed) {
+      flower.bloomProgress = flower.age / (40 * bloomSpeed);
     } else {
       flower.bloomProgress = 1;
       flower.isBlooming = true;
@@ -729,7 +840,10 @@ function drawRealLeaf(leaf) {
     alpha = map(leaf.age, leaf.maxAge, leaf.maxAge + 100, 255, 0);
   }
   
-  tint(255 * leaf.colorVariation, 255, 255, alpha);
+  // More color variation
+  let tintValue = 255 * leaf.colorVariation;
+  tint(tintValue, 255, 255, alpha);
+  
   imageMode(CENTER);
   
   let leafSize = 35 * leaf.size;
@@ -754,7 +868,10 @@ function drawRealFlower(flower) {
     alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 255, 0);
   }
   
-  tint(255 * flower.colorVariation, 255, 255, alpha);
+  // More color variation
+  let tintValue = 255 * flower.colorVariation;
+  tint(tintValue, 255, 255, alpha);
+  
   rotate(flower.angle);
   imageMode(CENTER);
   
@@ -770,15 +887,20 @@ function drawFallbackLeaf(leaf) {
   rotate(leaf.angle);
   
   let alpha = leaf.isAttached ? 200 : 100;
-  fill(50, 150, 70, alpha);
+  
+  // Use color variation for fallback leaves too
+  let greenValue = 150 * leaf.colorVariation;
+  fill(50, constrain(greenValue, 100, 200), 70, alpha);
+  
   noStroke();
   
+  // More organic leaf shape
   beginShape();
   vertex(0, 0);
   for (let i = 0; i <= TWO_PI; i += 0.2) {
-    let r = 12 * leaf.size * (0.5 + 0.5 * sin(i * 2));
+    let r = 12 * leaf.size * (0.4 + 0.6 * sin(i * 1.8)); // More organic shape
     let x = cos(i) * r;
-    let y = sin(i) * r * 0.6;
+    let y = sin(i) * r * 0.7;
     curveVertex(x, y);
   }
   endShape(CLOSE);
@@ -795,12 +917,22 @@ function drawFallbackFlower(flower) {
     alpha = map(flower.age, flower.maxAge - 100, flower.maxAge, 180, 0);
   }
   
-  for (let i = 0; i < 5; i++) {
+  // Variable number of petals for more randomness
+  let petalCount = floor(random(4, 7));
+  
+  for (let i = 0; i < petalCount; i++) {
     push();
-    rotate((TWO_PI / 5) * i + flower.angle);
-    fill(255, 100, 150, alpha);
+    rotate((TWO_PI / petalCount) * i + flower.angle);
+    
+    // Color variation for petals
+    let redValue = 255 * flower.colorVariation;
+    fill(constrain(redValue, 200, 255), 100, 150, alpha);
+    
     noStroke();
-    ellipse(0, -10 * flower.size, 12 * flower.size, 6 * flower.size);
+    // Random petal shape
+    let petalWidth = 12 * flower.size * random(0.8, 1.2);
+    let petalHeight = 6 * flower.size * random(0.8, 1.2);
+    ellipse(0, -10 * flower.size, petalWidth, petalHeight);
     pop();
   }
   
@@ -821,258 +953,3 @@ function drawUI() {
   textSize(12);
   
   text("Planted: 11 Nov 2025", 15, 25);
-  
-  let serialStatus;
-  let serialColor;
-  
-  if (serialConnected) {
-    if (millis() - lastDataTime < 5000) {
-      serialStatus = "Arduino Connected";
-      serialColor = color(100, 255, 100);
-    } else {
-      serialStatus = "No recent data";
-      serialColor = color(255, 200, 50);
-    }
-  } else {
-    serialStatus = "Click Connect Button";
-    serialColor = color(255, 200, 50);
-  }
-  
-  fill(serialColor);
-  text(serialStatus, 15, 45);
-  
-  let status = "Mature"; // Starting at 82.5 days, plant is mature
-  let ageInDays = plantAge / 100;
-  
-  if (ageInDays < 30) status = "Seedling";
-  else if (ageInDays < 60) status = "Sprout";
-  else if (ageInDays < 90) status = "Flowering";
-  else status = "Mature";
-  
-  if (flowers.length > 0) status = "Flowering " + status;
-  
-  fill(255);
-  text("Status: " + status, 15, 65);
-  text("Age: " + nf(ageInDays, 1, 1) + " days", 15, 85);
-  text("Leaves: " + leaves.length, 15, 105);
-  text("Flowers: " + flowers.length, 15, 125);
-  
-  let rightColumnX = 135;
-  text("Soil: " + sensorData.soilMoisture, rightColumnX, 65);
-  text("O2: " + sensorData.oxygen, rightColumnX, 85);
-  
-  let needsMessage = "Happy";
-  let needsColor = color(100, 255, 100);
-  
-  if (sensorData.soilMoisture < 300) {
-    needsMessage = "Thirsty";
-    needsColor = color(255, 100, 100);
-  } else if (sensorData.soilMoisture > 700) {
-    needsMessage = "Too wet";
-    needsColor = color(255, 200, 50);
-  }
-  
-  fill(needsColor);
-  text(needsMessage, rightColumnX, 45);
-  
-  noStroke();
-  fill(100);
-  rect(rightColumnX, 95, 80, 8);
-  fill(50, 200, 50);
-  let moistureWidth = map(sensorData.soilMoisture, 200, 800, 0, 80);
-  moistureWidth = constrain(moistureWidth, 0, 80);
-  rect(rightColumnX, 95, moistureWidth, 8);
-  
-  fill(255);
-  textSize(10);
-  text("Moisture", rightColumnX, 115);
-}
-
-class StemSegment {
-  constructor(startX, startY, endX, endY, generation, angle, thickness) {
-    this.startX = startX;
-    this.startY = startY;
-    this.endX = endX;
-    this.endY = endY;
-    this.angle = angle;
-    this.thickness = thickness;
-    this.generation = generation;
-    this.canGrow = true;
-    
-    this.growthProbability = map(generation, 0, 10, 0.9, 0.15);
-    this.growthProbability = max(this.growthProbability, 0.05);
-    
-    this.isRoot = false;
-    
-    this.baseStartX = startX;
-    this.baseStartY = startY;
-    this.baseEndX = endX;
-    this.baseEndY = endY;
-    
-    this.color = this.calculateColor();
-    this.textureOffset = random(1000);
-  }
-  
-  calculateColor() {
-    if (this.isRoot) return color(101, 67, 33);
-    
-    let brown = color(120, 80, 60);
-    let green = color(100, 130, 60);
-    let blendAmount = constrain(this.generation / 12, 0, 1);
-    
-    return lerpColor(brown, green, blendAmount);
-  }
-  
-  updateSway(time) {
-    let swayIntensity = 1 - (this.generation * 0.08);
-    swayIntensity = max(swayIntensity, 0.3);
-    
-    let swayAmount = sin(time * 0.8 + this.generation * 0.3 + this.textureOffset) * swayIntensity * 1.5;
-    
-    this.startX = this.baseStartX + swayAmount;
-    this.endX = this.baseEndX + swayAmount * 1.2;
-    
-    let verticalSway = cos(time * 0.6 + this.generation * 0.4) * swayIntensity * 0.5;
-    this.startY = this.baseStartY + verticalSway;
-    this.endY = this.baseEndY + verticalSway;
-  }
-  
-  draw() {
-    let dx = this.endX - this.startX;
-    let dy = this.endY - this.startY;
-    let segmentLength = sqrt(dx * dx + dy * dy);
-    
-    if (segmentLength < 0.1) return;
-    
-    let segmentAngle = atan2(dy, dx);
-    
-    if (branchImage && branchImage.width > 0) {
-      push();
-      translate(this.startX, this.startY);
-      rotate(segmentAngle);
-      
-      let tintColor = this.color;
-      tint(red(tintColor), green(tintColor), blue(tintColor), 220);
-      
-      imageMode(CORNER);
-      
-      let drawWidth = segmentLength;
-      let drawHeight = this.thickness * 5.5;
-      
-      let heightVariation = 1 + noise(this.textureOffset + time * 0.5) * 0.2;
-      drawHeight *= heightVariation;
-      
-      image(branchImage, 0, -drawHeight/2, drawWidth, drawHeight);
-      
-      pop();
-    } else {
-      stroke(this.color);
-      strokeWeight(this.thickness);
-      line(this.startX, this.startY, this.endX, this.endY);
-      
-      strokeWeight(max(1, this.thickness * 0.3));
-      stroke(red(this.color) - 20, green(this.color) - 10, blue(this.color) - 10, 150);
-      let steps = 4;
-      for (let i = 0; i <= steps; i++) {
-        let t = i / steps;
-        let x = lerp(this.startX, this.endX, t);
-        let y = lerp(this.startY, this.endY, t);
-        let offset = sin(t * PI + time) * this.thickness * 0.3;
-        line(x + offset, y, x - offset, y);
-      }
-    }
-  }
-}
-
-function mousePressed() {
-  let distance = dist(mouseX, mouseY, pot.x, pot.y - pot.height/2);
-  
-  if (distance < pot.width/2) {
-    sensorData.soilMoisture = min(800, sensorData.soilMoisture + 100);
-    console.log("Watered! Soil:", sensorData.soilMoisture);
-  }
-}
-
-function keyPressed() {
-  if (key === ' ') {
-    growPlant();
-    console.log("Manual growth.");
-  }
-  
-  if (key === 'r' || key === 'R') {
-    resetPlant();
-    sensorData.soilMoisture = 650;
-    console.log("Plant reset to 82.5 days!");
-  }
-  
-  if (key === 'a' || key === 'A') {
-    autoGrowth = !autoGrowth;
-    console.log("Auto growth:", autoGrowth ? "ON" : "OFF");
-  }
-  
-  if (key === '7') {
-    showDebugInfo = !showDebugInfo;
-    console.log("Debug info:", showDebugInfo ? "ON" : "OFF");
-  }
-  
-  // Position adjustment controls
-  let needsUpdate = false;
-  
-  if (key === '1') {
-    potEmbedAmount = max(0, potEmbedAmount - 10);
-    needsUpdate = true;
-  }
-  
-  if (key === '2') {
-    potEmbedAmount += 10;
-    needsUpdate = true;
-  }
-  
-  if (key === '3') {
-    potHorizontalPosition = max(0, potHorizontalPosition - 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '4') {
-    potHorizontalPosition = min(1, potHorizontalPosition + 0.05);
-    needsUpdate = true;
-  }
-  
-  if (key === '5') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset = max(0, plantStartYOffset - 5);
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset decreased to:", plantStartYOffset);
-  }
-  
-  if (key === '6') {
-    // Calculate the new position and adjust existing plant
-    let oldPos = calculatePlantBasePosition();
-    plantStartYOffset += 5;
-    let newPos = calculatePlantBasePosition();
-    let offsetY = newPos.baseY - oldPos.baseY;
-    adjustPlantPosition(offsetY);
-    console.log("plantStartYOffset increased to:", plantStartYOffset);
-  }
-  
-  if (key === '8') {
-    plantStartHeight = max(5, plantStartHeight - 5);
-    console.log("plantStartHeight decreased to:", plantStartHeight);
-  }
-  
-  if (key === '9') {
-    plantStartHeight += 5;
-    console.log("plantStartHeight increased to:", plantStartHeight);
-  }
-  
-  if (needsUpdate) {
-    console.log("Position updated:");
-    console.log("  potEmbedAmount:", potEmbedAmount);
-    console.log("  potHorizontalPosition:", potHorizontalPosition);
-    calculatePotPosition();
-    windowResized(); // This will update all positions
-  }
-}
